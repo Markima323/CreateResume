@@ -1,0 +1,19 @@
+FROM ubuntu:24.04
+
+LABEL description="Local Docker image for building resume.tex"
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -qq update \
+    && apt-get install -y --no-install-recommends \
+        make \
+        texlive-fonts-recommended \
+        texlive-lang-english \
+        texlive-latex-base \
+        texlive-latex-extra \
+        texlive-latex-recommended \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /resume
+
+CMD ["make"]

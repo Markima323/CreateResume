@@ -1,0 +1,25 @@
+# Generated PDF
+resume.pdf
+
+# LaTeX build files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*-blx.bib
+
+# Editor and OS files
+*.bak
+*.backup
+*.swp
+*.*~
