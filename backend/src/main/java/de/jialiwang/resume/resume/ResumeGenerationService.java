@@ -1,0 +1,90 @@
+package de.jialiwang.resume.resume;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.jialiwang.resume.application.ApplicationService;
+import de.jialiwang.resume.application.JobApplication;
+import de.jialiwang.resume.common.NotFoundException;
+import de.jialiwang.resume.projectdraft.ProjectDraft;
+import de.jialiwang.resume.projectdraft.ProjectDraftRepository;
+import de.jialiwang.resume.projectdraft.ProjectLatexParser;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class ResumeGenerationService {
+    private final Path generationRoot;
+    private final ApplicationService applications;
+    private final ProjectDraftRepository drafts;
+    private final ResumeGenerationRepository generations;
+    private final LatexRenderer renderer;
+    private final ObjectMapper mapper;
+
+    public ResumeGenerationService(@Value("${app.generation-dir}") String generationDir, ApplicationService applications,
+                                   ProjectDraftRepository drafts, ResumeGenerationRepository generations,
+                                   LatexRenderer renderer, ObjectMapper mapper) {
+        this.generationRoot = Paths.get(generationDir).toAbsolutePath().normalize();
+        this.applications = applications; this.drafts = drafts; this.generations = generations;
+        this.renderer = renderer; this.mapper = mapper;
+    }
+
+    @Transactional
+    public ResumeGeneration generate(UUID applicationId) {
+        JobApplication app = applications.get(applicationId);
+        List<ProjectDraft> projectDrafts = drafts.findAllByApplication_IdOrderByPosition(applicationId);
+        if (projectDrafts.size() != 3 || projectDrafts.stream().anyMatch(d -> !d.isApproved() || d.getParsedJson() == null)) {
+            throw new IllegalArgumentException("请先校验并确认三个项目内容");
+        }
+        try {
+            List<ProjectLatexParser.ParsedProject> parsed = projectDrafts.stream().map(d -> {
+                try { return mapper.readValue(d.getParsedJson(), ProjectLatexParser.ParsedProject.class); }
+                catch (Exception e) { throw new IllegalStateException(e); }
+            }).toList();
+            UUID generationId = UUID.randomUUID();
+            Path dir = generationRoot.resolve(applicationId.toString()).resolve(generationId.toString()).normalize();
+            ensureInsideRoot(dir); Files.createDirectories(dir);
+            Path tex = dir.resolve("resume.tex");
+            Files.writeString(tex, renderer.render(parsed), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+            ResumeGeneration generation = generations.save(new ResumeGeneration(generationId, app, tex.toString()));
+            compile(dir, generation);
+            app.markGenerated();
+            return generation;
+        } catch (IllegalArgumentException e) { throw e; }
+        catch (Exception e) { throw new IllegalStateException("生成简历失败：" + e.getMessage(), e); }
+    }
+
+    private void compile(Path dir, ResumeGeneration generation) {
+        try {
+            Process process = new ProcessBuilder("pdflatex", "-interaction=nonstopmode", "-halt-on-error", "resume.tex")
+                    .directory(dir.toFile()).redirectErrorStream(true).redirectOutput(dir.resolve("compile.log").toFile()).start();
+            if (!process.waitFor(30, TimeUnit.SECONDS)) { process.destroyForcibly(); generation.failed("LaTeX 编译超时；TeX 文件已生成"); return; }
+            Path pdf = dir.resolve("resume.pdf");
+            if (process.exitValue() == 0 && Files.exists(pdf)) generation.pdfReady(pdf.toString());
+            else generation.failed("LaTeX 编译失败；请下载 TeX 检查内容");
+        } catch (Exception e) {
+            generation.failed("当前环境没有 pdflatex；TeX 文件已生成，可通过 Docker 构建 PDF");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public ResumeGeneration get(UUID applicationId, UUID generationId) {
+        return generations.findByIdAndApplication_Id(generationId, applicationId)
+                .orElseThrow(() -> new NotFoundException("生成记录不存在"));
+    }
+    public FileSystemResource file(UUID applicationId, UUID generationId, boolean pdf) {
+        ResumeGeneration g = get(applicationId, generationId);
+        String path = pdf ? g.getPdfPath() : g.getTexPath();
+        if (path == null) throw new NotFoundException(pdf ? "PDF 尚未生成" : "TeX 不存在");
+        Path resolved = Paths.get(path).toAbsolutePath().normalize(); ensureInsideRoot(resolved);
+        if (!Files.isRegularFile(resolved)) throw new NotFoundException("生成文件不存在");
+        return new FileSystemResource(resolved);
+    }
+    private void ensureInsideRoot(Path path) { if (!path.startsWith(generationRoot)) throw new IllegalArgumentException("无效生成路径"); }
+}

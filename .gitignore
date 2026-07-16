@@ -23,3 +23,11 @@ resume.pdf
 *.backup
 *.swp
 *.*~
+
+# Application build and local configuration
+.env
+backend/target/
+backend/data/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
