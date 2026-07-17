@@ -115,6 +115,7 @@ jobs:
                   return 0
                 fi
                 if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ]; then
+                  docker inspect --format '{{json .State.Health}}' "$container_id" || true
                   compose logs --tail 100 "$service_name"
                   return 1
                 fi
