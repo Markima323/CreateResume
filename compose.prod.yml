@@ -51,6 +51,9 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
     expose:
       - "80"
     networks:
