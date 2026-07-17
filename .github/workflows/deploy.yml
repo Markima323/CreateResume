@@ -43,9 +43,6 @@ jobs:
 
       - name: Validate production Compose
         env:
-          SERVER_NAME: resume.example.com
-          BASIC_AUTH_USER: resume
-          BASIC_AUTH_PASSWORD: ci-only-password
           POSTGRES_DB: resume
           POSTGRES_USER: resume
           POSTGRES_PASSWORD: ci-only-database-password
@@ -99,12 +96,13 @@ jobs:
             git checkout main
             git pull --ff-only origin main
             compose config --quiet
+            docker network inspect public-proxy >/dev/null 2>&1 || docker network create public-proxy
             compose up -d --build --remove-orphans
 
             backend_id="$(compose ps -q backend)"
-            nginx_id="$(compose ps -q nginx)"
+            frontend_id="$(compose ps -q frontend)"
             test -n "$backend_id" || { echo "Backend container was not created"; exit 1; }
-            test -n "$nginx_id" || { echo "Nginx container was not created"; exit 1; }
+            test -n "$frontend_id" || { echo "Frontend container was not created"; exit 1; }
 
             wait_for_healthy() {
               container_id="$1"
@@ -129,6 +127,6 @@ jobs:
             }
 
             wait_for_healthy "$backend_id" backend
-            wait_for_healthy "$nginx_id" nginx
+            wait_for_healthy "$frontend_id" frontend
             compose ps
             docker image prune -f --filter "until=168h"

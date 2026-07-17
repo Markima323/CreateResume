@@ -33,7 +33,10 @@ services:
     expose:
       - "8080"
     networks:
-      - internal
+      internal:
+      public-proxy:
+        aliases:
+          - resume-backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,61 +54,22 @@ services:
     expose:
       - "80"
     networks:
-      - internal
+      internal:
+      public-proxy:
+        aliases:
+          - resume-frontend
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null"]
       interval: 10s
       timeout: 3s
       retries: 10
 
-  nginx:
-    build:
-      context: ./deploy/nginx
-    restart: unless-stopped
-    environment:
-      SERVER_NAME: ${SERVER_NAME:?SERVER_NAME is required}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?BASIC_AUTH_USER is required}
-      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:?BASIC_AUTH_PASSWORD is required}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
-    networks:
-      - internal
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz | grep -q ok"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-
-  certbot:
-    image: certbot/certbot:latest
-    restart: unless-stopped
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: >-
-      /bin/sh -c 'trap exit TERM;
-      while :; do
-        certbot renew --webroot -w /var/www/certbot --quiet;
-        sleep 43200 & wait $$!;
-      done'
-    networks:
-      - internal
-    depends_on:
-      nginx:
-        condition: service_healthy
-
 networks:
   internal:
     driver: bridge
+  public-proxy:
+    external: true
+    name: ${PUBLIC_PROXY_NETWORK:-public-proxy}
 
 volumes:
   postgres-data:

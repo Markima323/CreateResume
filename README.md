@@ -63,7 +63,7 @@ Without `OPENAI_API_KEY`, the application and local project catalog still start,
 
 ### Production deployment
 
-Production deployment uses `compose.prod.yml`, Nginx, Let's Encrypt and GitHub Actions. A push to `main` runs tests and then deploys to Hetzner over SSH. Complete first-time server, certificate and GitHub Secret setup is documented in [docs/服务器部署.md](docs/服务器部署.md).
+Production deployment shares the existing ZeitPlan Nginx on the same Hetzner server. `zeitplan.markima.de` and `lebenslauf.markima.de` use one public gateway and one external Docker network. A push to `main` runs tests and deploys the CreateResume backend/frontend over SSH. Complete shared-proxy, certificate and GitHub Secret setup is documented in [docs/服务器部署.md](docs/服务器部署.md).
 
 This project builds `resume.tex` into `resume.pdf` with Docker, so you do not need a local LaTeX installation.
 

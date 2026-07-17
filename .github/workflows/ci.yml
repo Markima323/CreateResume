@@ -47,9 +47,6 @@ jobs:
         run: docker compose -f compose.yml config --quiet
       - name: Validate production Compose configuration
         env:
-          SERVER_NAME: resume.example.com
-          BASIC_AUTH_USER: resume
-          BASIC_AUTH_PASSWORD: ci-only-password
           POSTGRES_DB: resume
           POSTGRES_USER: resume
           POSTGRES_PASSWORD: ci-only-database-password
