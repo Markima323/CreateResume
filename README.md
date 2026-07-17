@@ -61,6 +61,10 @@ npm.cmd run build
 
 Without `OPENAI_API_KEY`, the application and local project catalog still start, but the job-analysis endpoint returns a clear configuration error. Project recommendation has a deterministic local fallback if the AI reranking request is temporarily unavailable.
 
+### Production deployment
+
+Production deployment uses `compose.prod.yml`, Nginx, Let's Encrypt and GitHub Actions. A push to `main` runs tests and then deploys to Hetzner over SSH. Complete first-time server, certificate and GitHub Secret setup is documented in [docs/服务器部署.md](docs/服务器部署.md).
+
 This project builds `resume.tex` into `resume.pdf` with Docker, so you do not need a local LaTeX installation.
 
 ## Build with Docker

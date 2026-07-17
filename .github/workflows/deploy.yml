@@ -1,0 +1,134 @@
+name: Deploy to Hetzner
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: create-resume-production
+  cancel-in-progress: false
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Test backend
+        working-directory: backend
+        run: mvn --batch-mode verify
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Validate production Compose
+        env:
+          SERVER_NAME: resume.example.com
+          BASIC_AUTH_USER: resume
+          BASIC_AUTH_PASSWORD: ci-only-password
+          POSTGRES_DB: resume
+          POSTGRES_USER: resume
+          POSTGRES_PASSWORD: ci-only-database-password
+          OPENAI_API_KEY: ci-only-openai-key
+        run: docker compose -f compose.prod.yml config --quiet
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    environment: production
+    steps:
+      - name: Validate deployment secrets
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          HETZNER_DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+        run: |
+          test -n "$HETZNER_HOST" || { echo "Missing secret: HETZNER_HOST"; exit 1; }
+          test -n "$HETZNER_USER" || { echo "Missing secret: HETZNER_USER"; exit 1; }
+          test -n "$HETZNER_DEPLOY_PATH" || { echo "Missing secret: HETZNER_DEPLOY_PATH"; exit 1; }
+          test -n "$HETZNER_SSH_KEY" || { echo "Missing secret: HETZNER_SSH_KEY"; exit 1; }
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          port: ${{ secrets.HETZNER_PORT || 22 }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          passphrase: ${{ secrets.HETZNER_SSH_PASSPHRASE }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -eu
+            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+            test -f .env || { echo "Missing server .env file"; exit 1; }
+
+            compose() {
+              docker compose --env-file .env -f compose.prod.yml "$@"
+            }
+
+            mkdir -p backups
+            if [ -n "$(compose ps --status running -q postgres 2>/dev/null)" ]; then
+              backup="backups/resume-$(date -u +%Y%m%dT%H%M%SZ).sql"
+              compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$backup"
+              find backups -type f -name 'resume-*.sql' -mtime +7 -delete
+            fi
+
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            compose config --quiet
+            compose up -d --build --remove-orphans
+
+            backend_id="$(compose ps -q backend)"
+            nginx_id="$(compose ps -q nginx)"
+            test -n "$backend_id" || { echo "Backend container was not created"; exit 1; }
+            test -n "$nginx_id" || { echo "Nginx container was not created"; exit 1; }
+
+            wait_for_healthy() {
+              container_id="$1"
+              service_name="$2"
+              attempt=1
+              while [ "$attempt" -le 40 ]; do
+                status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+                if [ "$status" = "healthy" ]; then
+                  echo "$service_name is healthy"
+                  return 0
+                fi
+                if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ]; then
+                  compose logs --tail 100 "$service_name"
+                  return 1
+                fi
+                sleep 3
+                attempt=$((attempt + 1))
+              done
+              echo "$service_name did not become healthy in time"
+              compose logs --tail 100 "$service_name"
+              return 1
+            }
+
+            wait_for_healthy "$backend_id" backend
+            wait_for_healthy "$nginx_id" nginx
+            compose ps
+            docker image prune -f --filter "until=168h"

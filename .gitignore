@@ -31,3 +31,7 @@ backend/data/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+
+# Production certificates, backups and server-local state
+certbot/
+backups/
