@@ -34,11 +34,11 @@ public class ApplicationService {
 
     @Transactional
     public JobApplication createFromRawAndAnalyze(ApplicationDtos.AnalyzeRawRequest request) {
-        GeminiService.ExtractedJob extracted = ai.extractAndAnalyzeJob(request.jobText(), request.candidateSummary());
+        GeminiService.ExtractedJob extracted = ai.extractAndAnalyzeJob(request.jobText());
         String title = normalize(extracted.jobTitle(), "未识别岗位", 250);
         String company = normalize(extracted.companyName(), "", 250);
         String description = normalize(extracted.jobDescription(), request.jobText(), 20000);
-        JobApplication application = new JobApplication(title, company, description, request.candidateSummary());
+        JobApplication application = new JobApplication(title, company, description, null);
         application.saveAnalysis(extracted.analysisJson());
         return applications.save(application);
     }

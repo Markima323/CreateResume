@@ -26,7 +26,7 @@ public class GeminiService {
         this.mapper = mapper;
     }
 
-    public ExtractedJob extractAndAnalyzeJob(String rawJobText, String candidateSummary) {
+    public ExtractedJob extractAndAnalyzeJob(String rawJobText) {
         ObjectNode schema = objectSchema();
         ObjectNode fields = mapper.createObjectNode();
         fields.set("jobTitle", stringSchema("岗位广告中的职位名称；无法识别时填写“未识别岗位”"));
@@ -41,10 +41,9 @@ public class GeminiService {
                 先从整段文本中提取岗位名称、公司名称和实际岗位介绍，再生成结构化中文岗位分析。
                 只依据提供的招聘文本；保留重要的德文技术名词。严格区分必须条件与加分条件。
                 无法确定的公司名称返回空字符串；其他不确定内容写入 uncertainties，不得自行补全。
-                resumePriorities 必须结合候选人简述，但不得虚构候选人的技能、经历或项目成果。
+                resumePriorities 只说明这个岗位在简历中通常应突出哪些能力，不判断用户是否已经具备。
                 """;
-        String input = "候选人简述：\n" + nullToEmpty(candidateSummary)
-                + "\n\n<raw_job_posting>\n" + rawJobText + "\n</raw_job_posting>";
+        String input = "<raw_job_posting>\n" + rawJobText + "\n</raw_job_posting>";
         String json = structuredRequest(systemInstruction, input, schema);
         try {
             JsonNode result = mapper.readTree(json);

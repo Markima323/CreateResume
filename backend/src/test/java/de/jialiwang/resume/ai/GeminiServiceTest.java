@@ -48,7 +48,7 @@ class GeminiServiceTest {
                 .andExpect(jsonPath("$.response_format.mime_type").value("application/json"))
                 .andRespond(withSuccess(mapper.writeValueAsString(response), MediaType.APPLICATION_JSON));
 
-        GeminiService.ExtractedJob result = service.extractAndAnalyzeJob("Stellenanzeige", "Java Erfahrung");
+        GeminiService.ExtractedJob result = service.extractAndAnalyzeJob("Stellenanzeige");
 
         assertThat(result.jobTitle()).isEqualTo("Java Backend Developer");
         assertThat(result.companyName()).isEqualTo("Beispiel GmbH");
@@ -63,7 +63,7 @@ class GeminiServiceTest {
         GeminiService service = new GeminiService(RestClient.create(),
                 new GeminiProperties("", "gemini-3.5-flash", "unused", false, "medium"), mapper);
 
-        assertThatThrownBy(() -> service.extractAndAnalyzeJob("Stellenanzeige", ""))
+        assertThatThrownBy(() -> service.extractAndAnalyzeJob("Stellenanzeige"))
                 .isInstanceOf(AiUnavailableException.class)
                 .hasMessageContaining("GEMINI_API_KEY");
     }

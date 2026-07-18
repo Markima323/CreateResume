@@ -3,8 +3,6 @@ import { AlertCircle, Check, Clipboard, Download, FileText, LoaderCircle, Rotate
 import { api } from './api'
 import type { Application, Draft, Generation, Project, Recommendation } from './types'
 
-const candidateDefault = `Informatikerin mit Schwerpunkt KI-, Backend- und Systementwicklung. Master Informatik an der Hochschule Darmstadt. Erfahrung mit Java, Spring Boot, React, PostgreSQL, Python, KI-Pipelines, Docker und Systemintegration.`
-
 function App() {
   const [application, setApplication] = useState<Application | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -26,7 +24,7 @@ function App() {
 
   const createAndAnalyze = (form: JobFormValue) => run(
     'analyze',
-    () => api.analyzeRaw(form.jobText, form.candidateSummary),
+    () => api.analyzeRaw(form.jobText),
     app => { setApplication(app); setStep(2) },
   )
 
@@ -106,10 +104,10 @@ function StepRail({ current, onStep }: { current: number; onStep: (step: number)
   </nav>
 }
 
-interface JobFormValue { jobText: string; candidateSummary: string }
+interface JobFormValue { jobText: string }
 function JobForm({ initial, busy, onSubmit }: { initial: Application | null; busy: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
-    jobText: initial?.jobDescription ?? '', candidateSummary: initial?.candidateSummary ?? candidateDefault,
+    jobText: initial?.jobDescription ?? '',
   })
   const update = (key: keyof JobFormValue) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(v => ({ ...v, [key]: e.target.value }))
   return <div className="panel intro-panel">
@@ -118,8 +116,7 @@ function JobForm({ initial, busy, onSubmit }: { initial: Application | null; bus
       <Sparkles className="heading-icon" size={34}/>
     </div>
     <label>完整招聘信息 <small>可包含岗位名称、公司名称、职责和要求</small><textarea className="job-description" value={value.jobText} onChange={update('jobText')} placeholder="直接粘贴整段 Stellenanzeige，Gemini 会自动提取岗位名称、公司名称和岗位介绍…" /></label>
-    <label>个人简述 <small>会用于判断哪些要求已有证据</small><textarea value={value.candidateSummary} onChange={update('candidateSummary')} /></label>
-    <div className="action-row"><p>Gemini 会先提取字段，再用中文解释岗位；简历项目仍输出德文。</p><button className="primary-button" disabled={busy || !value.jobText.trim()} onClick={() => onSubmit(value)}>{busy && <LoaderCircle className="spin" size={17}/>}提取并分析</button></div>
+    <div className="action-row"><p>此步骤只分析公司需要什么；个人经历会在项目匹配阶段作为证据使用。</p><button className="primary-button" disabled={busy || !value.jobText.trim()} onClick={() => onSubmit(value)}>{busy && <LoaderCircle className="spin" size={17}/>}提取并分析</button></div>
   </div>
 }
 
