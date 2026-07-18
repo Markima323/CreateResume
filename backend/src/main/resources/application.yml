@@ -25,10 +25,11 @@ management:
       exposure:
         include: health,info
 app:
-  openai:
-    api-key: ${OPENAI_API_KEY:}
-    model: ${OPENAI_MODEL:gpt-5.4-mini}
-    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.5-flash}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
     store: false
+    thinking-level: ${GEMINI_THINKING_LEVEL:medium}
   generation-dir: ${GENERATION_DIR:./data/generations}
   latex-template: ${LATEX_TEMPLATE:classpath:resume-template/base-resume.tex}

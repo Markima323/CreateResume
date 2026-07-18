@@ -33,7 +33,7 @@ export interface Recommendation {
   matchedKeywords: string[]
   reason: string
   gaps: string[]
-  source: 'OPENAI' | 'LOCAL_FALLBACK'
+  source: 'GEMINI' | 'LOCAL_FALLBACK'
 }
 
 export interface ParsedProject {

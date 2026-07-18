@@ -13,6 +13,9 @@ public final class ApplicationDtos {
             @Size(max = 250) String companyName,
             @NotBlank @Size(max = 20000) String jobDescription,
             @Size(max = 12000) String candidateSummary) {}
+    public record AnalyzeRawRequest(
+            @NotBlank @Size(max = 30000) String jobText,
+            @Size(max = 12000) String candidateSummary) {}
     public record AnalysisRequest(@NotBlank String analysisJson) {}
     public record SelectionRequest(List<UUID> projectIds) {}
     public record View(UUID id, String jobTitle, String companyName, String jobDescription,

@@ -1,7 +1,7 @@
 package de.jialiwang.resume.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.jialiwang.resume.ai.OpenAiService;
+import de.jialiwang.resume.ai.GeminiService;
 import de.jialiwang.resume.common.NotFoundException;
 import de.jialiwang.resume.projectcatalog.PortfolioProject;
 import de.jialiwang.resume.projectcatalog.PortfolioProjectRepository;
@@ -19,17 +19,28 @@ public class ApplicationService {
     private final JobApplicationRepository applications;
     private final PortfolioProjectRepository projects;
     private final ProjectDraftRepository drafts;
-    private final OpenAiService ai;
+    private final GeminiService ai;
     private final ObjectMapper mapper;
 
     public ApplicationService(JobApplicationRepository applications, PortfolioProjectRepository projects,
-                              ProjectDraftRepository drafts, OpenAiService ai, ObjectMapper mapper) {
+                              ProjectDraftRepository drafts, GeminiService ai, ObjectMapper mapper) {
         this.applications = applications; this.projects = projects; this.drafts = drafts; this.ai = ai; this.mapper = mapper;
     }
 
     @Transactional
     public JobApplication create(ApplicationDtos.SaveRequest r) {
         return applications.save(new JobApplication(r.jobTitle(), r.companyName(), r.jobDescription(), r.candidateSummary()));
+    }
+
+    @Transactional
+    public JobApplication createFromRawAndAnalyze(ApplicationDtos.AnalyzeRawRequest request) {
+        GeminiService.ExtractedJob extracted = ai.extractAndAnalyzeJob(request.jobText(), request.candidateSummary());
+        String title = normalize(extracted.jobTitle(), "未识别岗位", 250);
+        String company = normalize(extracted.companyName(), "", 250);
+        String description = normalize(extracted.jobDescription(), request.jobText(), 20000);
+        JobApplication application = new JobApplication(title, company, description, request.candidateSummary());
+        application.saveAnalysis(extracted.analysisJson());
+        return applications.save(application);
     }
 
     @Transactional(readOnly = true)
@@ -66,5 +77,10 @@ public class ApplicationService {
         a.selectProjects(projectIds.stream().map(UUID::toString).collect(Collectors.joining(",")));
         drafts.deleteAllByApplication_Id(id);
         return a;
+    }
+
+    private String normalize(String value, String fallback, int maxLength) {
+        String result = value == null || value.isBlank() ? fallback : value.trim();
+        return result.length() <= maxLength ? result : result.substring(0, maxLength);
     }
 }

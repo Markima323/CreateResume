@@ -15,6 +15,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  analyzeRaw: (jobText: string, candidateSummary: string) => request<Application>('/applications/analyze-raw', {
+    method: 'POST', body: JSON.stringify({ jobText, candidateSummary }),
+  }),
   createApplication: (data: object) => request<Application>('/applications', { method: 'POST', body: JSON.stringify(data) }),
   updateApplication: (id: string, data: object) => request<Application>(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   analyze: (id: string) => request<Application>(`/applications/${id}/analyze`, { method: 'POST' }),

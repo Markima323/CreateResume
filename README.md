@@ -4,14 +4,16 @@
 
 The repository now includes a Web application for this workflow:
 
-1. Paste a German job description.
-2. Generate a structured Chinese job analysis with the OpenAI Responses API.
+1. Paste the complete German job posting into one text box.
+2. Extract the job title, company and description and generate a structured Chinese analysis with the Gemini Interactions API.
 3. Recommend and confirm three matching portfolio projects.
 4. Copy three generated prompts into separate Codex windows.
 5. Paste the German LaTeX project descriptions back into the application.
 6. Validate exactly four resume items per project and generate TeX/PDF.
 
 The implementation uses Java 21, Spring Boot 3, React, PostgreSQL, Docker Compose and Nginx. See [the development document](docs/开发文档.md) for architecture and design decisions.
+
+The Gemini integration uses the stateless Interactions API (`store: false`) and JSON Schema structured output. See the [official Gemini Interactions guide](https://ai.google.dev/gemini-api/docs/interactions-overview).
 
 ### Run the application
 
@@ -21,7 +23,7 @@ Create the local environment file:
 Copy-Item .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env`, then build and start all services:
+Set `GEMINI_API_KEY` in `.env`, then build and start all services:
 
 ```powershell
 docker compose up -d --build
@@ -59,7 +61,7 @@ npm.cmd install
 npm.cmd run build
 ```
 
-Without `OPENAI_API_KEY`, the application and local project catalog still start, but the job-analysis endpoint returns a clear configuration error. Project recommendation has a deterministic local fallback if the AI reranking request is temporarily unavailable.
+Without `GEMINI_API_KEY`, the application and local project catalog still start, but AI extraction and analysis return a clear configuration error. Project recommendation has a deterministic local fallback if AI reranking is temporarily unavailable.
 
 ### Production deployment
 

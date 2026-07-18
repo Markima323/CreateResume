@@ -3,7 +3,7 @@ package de.jialiwang.resume.projectcatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jialiwang.resume.ai.AiUnavailableException;
-import de.jialiwang.resume.ai.OpenAiService;
+import de.jialiwang.resume.ai.GeminiService;
 import de.jialiwang.resume.application.ApplicationService;
 import de.jialiwang.resume.application.JobApplication;
 import org.springframework.stereotype.Service;
@@ -18,11 +18,11 @@ public class RecommendationService {
                                  List<String> gaps, String source) {}
     private final PortfolioProjectRepository projects;
     private final ApplicationService applications;
-    private final OpenAiService ai;
+    private final GeminiService ai;
     private final ObjectMapper mapper;
 
     public RecommendationService(PortfolioProjectRepository projects, ApplicationService applications,
-                                 OpenAiService ai, ObjectMapper mapper) {
+                                 GeminiService ai, ObjectMapper mapper) {
         this.projects = projects; this.applications = applications; this.ai = ai; this.mapper = mapper;
     }
 
@@ -64,7 +64,7 @@ public class RecommendationService {
                 PortfolioProject p = allowed.get(id);
                 if (p == null || !seen.add(id)) throw new IllegalArgumentException("AI 返回了无效项目");
                 result.add(new Recommendation(ProjectDto.from(p), n.path("score").asInt(), strings(n.path("matchedKeywords")),
-                        n.path("reason").asText(), strings(n.path("gaps")), "OPENAI"));
+                        n.path("reason").asText(), strings(n.path("gaps")), "GEMINI"));
             }
             return result;
         } catch (Exception e) { throw new IllegalArgumentException("无法解析 AI 推荐结果", e); }

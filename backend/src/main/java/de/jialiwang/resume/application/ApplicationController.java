@@ -14,6 +14,10 @@ public class ApplicationController {
     ApplicationDtos.View create(@Valid @RequestBody ApplicationDtos.SaveRequest request) {
         return ApplicationDtos.View.from(service.create(request));
     }
+    @PostMapping("/analyze-raw")
+    ApplicationDtos.View analyzeRaw(@Valid @RequestBody ApplicationDtos.AnalyzeRawRequest request) {
+        return ApplicationDtos.View.from(service.createFromRawAndAnalyze(request));
+    }
     @GetMapping("/{id}")
     ApplicationDtos.View get(@PathVariable UUID id) { return ApplicationDtos.View.from(service.get(id)); }
     @PatchMapping("/{id}")

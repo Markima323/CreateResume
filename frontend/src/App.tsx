@@ -24,12 +24,11 @@ function App() {
     finally { setBusy('') }
   }
 
-  const createAndAnalyze = (form: JobFormValue) => run('analyze', async () => {
-    const app = application
-      ? await api.updateApplication(application.id, form)
-      : await api.createApplication(form)
-    return api.analyze(app.id)
-  }, app => { setApplication(app); setStep(2) })
+  const createAndAnalyze = (form: JobFormValue) => run(
+    'analyze',
+    () => api.analyzeRaw(form.jobText, form.candidateSummary),
+    app => { setApplication(app); setStep(2) },
+  )
 
   const saveAnalysisAndRecommend = (json: string) => {
     if (!application) return
@@ -107,25 +106,20 @@ function StepRail({ current, onStep }: { current: number; onStep: (step: number)
   </nav>
 }
 
-interface JobFormValue { jobTitle: string; companyName: string; jobDescription: string; candidateSummary: string }
+interface JobFormValue { jobText: string; candidateSummary: string }
 function JobForm({ initial, busy, onSubmit }: { initial: Application | null; busy: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
-    jobTitle: initial?.jobTitle ?? '', companyName: initial?.companyName ?? '',
-    jobDescription: initial?.jobDescription ?? '', candidateSummary: initial?.candidateSummary ?? candidateDefault,
+    jobText: initial?.jobDescription ?? '', candidateSummary: initial?.candidateSummary ?? candidateDefault,
   })
-  const update = (key: keyof JobFormValue) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setValue(v => ({ ...v, [key]: e.target.value }))
+  const update = (key: keyof JobFormValue) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(v => ({ ...v, [key]: e.target.value }))
   return <div className="panel intro-panel">
     <div className="panel-heading">
       <div><p className="section-number">01 / JOB BRIEF</p><h2>粘贴目标岗位</h2><p>系统会先把招聘语言翻译成实际工作，再从项目库寻找证据。</p></div>
       <Sparkles className="heading-icon" size={34}/>
     </div>
-    <div className="form-grid two">
-      <label>岗位名称<input value={value.jobTitle} onChange={update('jobTitle')} placeholder="例如：Java Backend Developer" /></label>
-      <label>公司名称 <small>可选</small><input value={value.companyName} onChange={update('companyName')} placeholder="Unternehmen GmbH" /></label>
-    </div>
-    <label>岗位介绍<textarea className="job-description" value={value.jobDescription} onChange={update('jobDescription')} placeholder="在这里粘贴完整 Stellenbeschreibung…" /></label>
+    <label>完整招聘信息 <small>可包含岗位名称、公司名称、职责和要求</small><textarea className="job-description" value={value.jobText} onChange={update('jobText')} placeholder="直接粘贴整段 Stellenanzeige，Gemini 会自动提取岗位名称、公司名称和岗位介绍…" /></label>
     <label>个人简述 <small>会用于判断哪些要求已有证据</small><textarea value={value.candidateSummary} onChange={update('candidateSummary')} /></label>
-    <div className="action-row"><p>岗位分析输出中文，简历项目输出德文。</p><button className="primary-button" disabled={busy || !value.jobTitle.trim() || !value.jobDescription.trim()} onClick={() => onSubmit(value)}>{busy && <LoaderCircle className="spin" size={17}/>}分析岗位</button></div>
+    <div className="action-row"><p>Gemini 会先提取字段，再用中文解释岗位；简历项目仍输出德文。</p><button className="primary-button" disabled={busy || !value.jobText.trim()} onClick={() => onSubmit(value)}>{busy && <LoaderCircle className="spin" size={17}/>}提取并分析</button></div>
   </div>
 }
 
@@ -134,7 +128,11 @@ function AnalysisStep({ application, busy, onContinue }: { application: Applicat
   const [json, setJson] = useState(initial)
   const parsed = useMemo(() => { try { return JSON.parse(json) } catch { return null } }, [json])
   return <div className="panel">
-    <div className="panel-heading"><div><p className="section-number">02 / ROLE DECODED</p><h2>这份工作实际上要做什么</h2><p>先核对分析；你编辑后的版本会成为项目匹配依据。</p></div><span className="status-chip">GPT 分析</span></div>
+    <div className="panel-heading"><div><p className="section-number">02 / ROLE DECODED</p><h2>这份工作实际上要做什么</h2><p>先核对提取结果和分析；你编辑后的版本会成为项目匹配依据。</p></div><span className="status-chip">Gemini 分析</span></div>
+    <div className="extracted-job-summary">
+      <div><span>岗位名称</span><b>{application.jobTitle}</b></div>
+      <div><span>公司名称</span><b>{application.companyName || '未识别'}</b></div>
+    </div>
     {parsed ? <AnalysisCards analysis={parsed} /> : <div className="inline-warning">JSON 格式暂时无效，请修正后继续。</div>}
     <details className="json-editor"><summary>编辑结构化分析 JSON</summary><textarea value={json} onChange={e => setJson(e.target.value)} spellCheck={false}/></details>
     <div className="action-row"><p>不确定的要求应保留在 uncertainties，而不是自行补全。</p><button className="primary-button" disabled={busy || !parsed} onClick={() => onContinue(json)}>{busy && <LoaderCircle className="spin" size={17}/>}匹配项目</button></div>
@@ -161,7 +159,7 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
 }) {
   const choose = (index: number, id: string) => setSelected(selected.map((x, i) => i === index ? id : x))
   return <div className="panel">
-    <div className="panel-heading"><div><p className="section-number">03 / EVIDENCE MATCH</p><h2>最匹配的三个项目</h2><p>推荐只是起点。你可以替换项目，但三个位置不能重复。</p></div><span className="status-chip">{recommendations[0]?.source === 'OPENAI' ? 'AI 重排' : '本地匹配'}</span></div>
+    <div className="panel-heading"><div><p className="section-number">03 / EVIDENCE MATCH</p><h2>最匹配的三个项目</h2><p>推荐只是起点。你可以替换项目，但三个位置不能重复。</p></div><span className="status-chip">{recommendations[0]?.source === 'GEMINI' ? 'Gemini 重排' : '本地匹配'}</span></div>
     <div className="recommendation-grid">
       {[0,1,2].map(index => {
         const selectedProject = projects.find(p => p.id === selected[index])

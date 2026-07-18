@@ -50,5 +50,5 @@ jobs:
           POSTGRES_DB: resume
           POSTGRES_USER: resume
           POSTGRES_PASSWORD: ci-only-database-password
-          OPENAI_API_KEY: ci-only-openai-key
+          GEMINI_API_KEY: ci-only-gemini-key
         run: docker compose -f compose.prod.yml config --quiet

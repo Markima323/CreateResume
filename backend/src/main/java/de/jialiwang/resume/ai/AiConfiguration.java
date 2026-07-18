@@ -6,10 +6,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-@EnableConfigurationProperties(OpenAiProperties.class)
+@EnableConfigurationProperties(GeminiProperties.class)
 public class AiConfiguration {
     @Bean
-    RestClient openAiRestClient(OpenAiProperties properties) {
+    RestClient geminiRestClient(GeminiProperties properties) {
         return RestClient.builder().baseUrl(properties.baseUrl()).build();
     }
 }
