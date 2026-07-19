@@ -28,5 +28,8 @@ export const api = {
   initDrafts: (id: string) => request<Draft[]>(`/applications/${id}/drafts/prompts`, { method: 'POST' }),
   saveDraft: (id: string, position: number, latex: string, approve: boolean) => request<Draft>(`/applications/${id}/drafts/${position}`, { method: 'PUT', body: JSON.stringify({ latex, approve }) }),
   generate: (id: string) => request<Generation>(`/applications/${id}/generations`, { method: 'POST' }),
+  generateManual: (id: string, projects: string[]) => request<Generation>(`/applications/${id}/generations/manual`, {
+    method: 'POST', body: JSON.stringify({ projects }),
+  }),
   downloadUrl: (applicationId: string, generationId: string, type: 'tex' | 'pdf') => `${BASE}/applications/${applicationId}/generations/${generationId}/resume.${type}`,
 }

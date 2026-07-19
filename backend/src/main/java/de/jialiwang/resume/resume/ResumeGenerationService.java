@@ -25,14 +25,15 @@ public class ResumeGenerationService {
     private final ProjectDraftRepository drafts;
     private final ResumeGenerationRepository generations;
     private final LatexRenderer renderer;
+    private final ProjectLatexParser parser;
     private final ObjectMapper mapper;
 
     public ResumeGenerationService(@Value("${app.generation-dir}") String generationDir, ApplicationService applications,
                                    ProjectDraftRepository drafts, ResumeGenerationRepository generations,
-                                   LatexRenderer renderer, ObjectMapper mapper) {
+                                   LatexRenderer renderer, ProjectLatexParser parser, ObjectMapper mapper) {
         this.generationRoot = Paths.get(generationDir).toAbsolutePath().normalize();
         this.applications = applications; this.drafts = drafts; this.generations = generations;
-        this.renderer = renderer; this.mapper = mapper;
+        this.renderer = renderer; this.parser = parser; this.mapper = mapper;
     }
 
     @Transactional
@@ -42,13 +43,30 @@ public class ResumeGenerationService {
         if (projectDrafts.size() != 3 || projectDrafts.stream().anyMatch(d -> !d.isApproved() || d.getParsedJson() == null)) {
             throw new IllegalArgumentException("请先校验并确认三个项目内容");
         }
+        List<ProjectLatexParser.ParsedProject> parsed = projectDrafts.stream().map(d -> {
+            try { return mapper.readValue(d.getParsedJson(), ProjectLatexParser.ParsedProject.class); }
+            catch (Exception e) { throw new IllegalStateException(e); }
+        }).toList();
+        return generate(app, parsed);
+    }
+
+    @Transactional
+    public ResumeGeneration generateManual(UUID applicationId, List<String> projects) {
+        JobApplication app = applications.get(applicationId);
+        if (projects == null || projects.size() != 3) throw new IllegalArgumentException("必须填写三个项目描述");
+        List<ProjectLatexParser.ParsedProject> parsed = projects.stream().map(parser::parse).toList();
+        String errors = java.util.stream.IntStream.range(0, parsed.size())
+                .filter(index -> !parsed.get(index).valid())
+                .mapToObj(index -> "项目 " + (index + 1) + "：" + String.join("；", parsed.get(index).errors()))
+                .collect(java.util.stream.Collectors.joining(" | "));
+        if (!errors.isBlank()) throw new IllegalArgumentException(errors);
+        return generate(app, parsed);
+    }
+
+    private ResumeGeneration generate(JobApplication app, List<ProjectLatexParser.ParsedProject> parsed) {
         try {
-            List<ProjectLatexParser.ParsedProject> parsed = projectDrafts.stream().map(d -> {
-                try { return mapper.readValue(d.getParsedJson(), ProjectLatexParser.ParsedProject.class); }
-                catch (Exception e) { throw new IllegalStateException(e); }
-            }).toList();
             UUID generationId = UUID.randomUUID();
-            Path dir = generationRoot.resolve(applicationId.toString()).resolve(generationId.toString()).normalize();
+            Path dir = generationRoot.resolve(app.getId().toString()).resolve(generationId.toString()).normalize();
             ensureInsideRoot(dir); Files.createDirectories(dir);
             Path tex = dir.resolve("resume.tex");
             Files.writeString(tex, renderer.render(parsed), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);

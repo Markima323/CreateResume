@@ -4,6 +4,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -12,9 +13,13 @@ public class GenerationController {
     public record View(UUID id, String status, String errorMessage, OffsetDateTime createdAt) {
         static View from(ResumeGeneration g) { return new View(g.getId(), g.getStatus(), g.getErrorMessage(), g.getCreatedAt()); }
     }
+    public record ManualRequest(List<String> projects) {}
     private final ResumeGenerationService service;
     public GenerationController(ResumeGenerationService service) { this.service = service; }
     @PostMapping View generate(@PathVariable UUID applicationId) { return View.from(service.generate(applicationId)); }
+    @PostMapping("/manual") View generateManual(@PathVariable UUID applicationId, @RequestBody ManualRequest request) {
+        return View.from(service.generateManual(applicationId, request.projects()));
+    }
     @GetMapping("/{generationId}") View get(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
         return View.from(service.get(applicationId, generationId));
     }

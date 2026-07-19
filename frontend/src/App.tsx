@@ -91,9 +91,22 @@ function App() {
     })
   }
 
-  const generate = () => {
-    if (!application) return
-    run('generate', () => api.generate(application.id), value => { setGeneration(value); openStep(5) })
+  const generate = (manualProjects?: string[]) => {
+    if (!application && !manualProjects) return
+    run('generate', async () => {
+      let target = application
+      if (!target) {
+        target = await api.createApplication({
+          jobTitle: 'Manuell erstellter Lebenslauf',
+          companyName: '',
+          jobDescription: 'Direkte Eingabe von drei Projektbeschreibungen',
+          candidateSummary: '',
+        })
+        setApplication(target)
+      }
+      const value = manualProjects ? await api.generateManual(target.id, manualProjects) : await api.generate(target.id)
+      return { target, value }
+    }, ({ target, value }) => { setApplication(target); setGeneration(value); openStep(5) })
   }
 
   const reset = () => {
@@ -143,17 +156,6 @@ function StepRail({ current, furthest, onStep }: { current: number; furthest: nu
 }
 
 interface JobFormValue { jobText: string }
-const LOCAL_DRAFTS_KEY = 'resume-workbench-project-drafts-v1'
-
-function loadLocalDraftTexts(): Record<number, string> {
-  try {
-    const value = JSON.parse(window.localStorage.getItem(LOCAL_DRAFTS_KEY) ?? '{}') as Record<string, unknown>
-    return Object.fromEntries([1, 2, 3].map(position => [position, typeof value[position] === 'string' ? value[position] : '']))
-  } catch {
-    return { 1: '', 2: '', 3: '' }
-  }
-}
-
 function JobForm({ initial, analyzing, locked, onSubmit }: { initial: Application | null; analyzing: boolean; locked: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
     jobText: initial?.jobDescription ?? '',
@@ -228,32 +230,27 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
   </div>
 }
 
-function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: () => void }) {
-  const [texts, setTexts] = useState<Record<number, string>>(loadLocalDraftTexts)
-  useEffect(() => setTexts(current => {
-    const next = { ...current }
-    drafts.forEach(draft => { if (draft.latex?.trim()) next[draft.position] = draft.latex })
-    return next
-  }), [drafts])
-  useEffect(() => {
-    try { window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(texts)) } catch { /* Browser storage can be unavailable. */ }
-  }, [texts])
+function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
+  const [texts, setTexts] = useState<Record<number, string>>({})
+  useEffect(() => setTexts(current => ({ ...current, ...Object.fromEntries(drafts.map(draft => [draft.position, draft.latex ?? current[draft.position] ?? ''])) })), [drafts])
   const allApproved = drafts.length === 3 && drafts.every(d => d.approved)
+  const manualProjects = [1, 2, 3].map(position => texts[position] ?? '')
+  const manualReady = manualProjects.every(value => value.trim())
   return <div className="panel draft-panel">
-    <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>{drafts.length === 0 ? '直接粘贴或编辑已有的项目描述；内容会自动保存在当前浏览器。' : '复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。'}</p></div><span className="status-chip">{drafts.length === 0 ? '本地恢复模式' : `${drafts.filter(d => d.approved).length} / 3 已确认`}</span></div>
+    <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>{drafts.length === 0 ? '跳过岗位分析和项目匹配，直接粘贴三段完整的 LaTeX 项目描述。' : '复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。'}</p></div><span className="status-chip">{drafts.length === 0 ? '直接生成模式' : `${drafts.filter(d => d.approved).length} / 3 已确认`}</span></div>
     {drafts.length === 0
       ? <div className="manual-draft-stack">
-          <div className="draft-empty"><FileText size={28}/><div><h3>未选择项目：本地编辑模式</h3><p>三个编辑框可以正常使用并自动保存在此浏览器，但此模式没有项目事实，因此不能复制 Codex Prompt。完成项目匹配后，已输入内容会保留并带入正式编辑框。</p></div></div>
+          <div className="draft-empty"><FileText size={28}/><div><h3>未选择项目：直接生成模式</h3><p>此模式不提供 Codex Prompt。三个框都有内容后即可生成简历，提交时后端会检查每段格式及四条项目内容。</p></div></div>
           {[1, 2, 3].map(position => <ManualDraftEditor key={position} position={position} value={texts[position] ?? ''} setValue={value => setTexts(current => ({ ...current, [position]: value }))} />)}
         </div>
       : <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>}
-    <div className="action-row"><p>{drafts.length === 0 ? '完成项目匹配后可以校验这三段内容并生成简历。' : '只有三个项目均通过“恰好四条”校验后才能生成。'}</p><button className="primary-button" disabled={busy !== '' || !allApproved} onClick={onGenerate}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
+    <div className="action-row"><p>{drafts.length === 0 ? '三个框都有文字即可提交；格式错误会在生成时明确提示。' : '只有三个项目均通过“恰好四条”校验后才能生成。'}</p><button className="primary-button" disabled={busy !== '' || (drafts.length === 0 ? !manualReady : !allApproved)} onClick={() => drafts.length === 0 ? onGenerate(manualProjects) : onGenerate()}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
   </div>
 }
 
 function ManualDraftEditor({ position, value, setValue }: { position: number; value: string; setValue: (value: string) => void }) {
   return <article className="draft-editor manual-draft-editor">
-    <div className="draft-title"><div><span>PROJECT 0{position}</span><h3>项目描述 {position}</h3></div><b>自动保存在浏览器</b></div>
+    <div className="draft-title"><div><span>PROJECT 0{position}</span><h3>项目描述 {position}</h3></div></div>
     <label>粘贴或编辑 LaTeX 项目描述<textarea className="latex-input" value={value} onChange={event => setValue(event.target.value)} placeholder="\resumeProjectHeading …" spellCheck={false}/></label>
   </article>
 }
