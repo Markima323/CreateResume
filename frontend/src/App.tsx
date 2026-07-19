@@ -133,8 +133,9 @@ function StepRail({ current, furthest, onStep }: { current: number; furthest: nu
   return <nav className="step-rail" aria-label="生成步骤">
     {steps.map((label, index) => {
       const number = index + 1
-      const state = number === current ? 'active' : number <= furthest ? 'done' : ''
-      return <button key={label} className={state} disabled={number > furthest} onClick={() => onStep(number)}>
+      const alwaysAvailable = number === 4
+      const state = number === current ? 'active' : number <= furthest ? 'done' : alwaysAvailable ? 'available' : ''
+      return <button key={label} className={state} disabled={number > furthest && !alwaysAvailable} onClick={() => onStep(number)}>
         <span>{number <= furthest && number !== current ? <Check size={15}/> : number}</span><b>{label}</b>
       </button>
     })}
@@ -222,7 +223,9 @@ function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy
   const allApproved = drafts.length === 3 && drafts.every(d => d.approved)
   return <div className="panel draft-panel">
     <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。</p></div><span className="status-chip">{drafts.filter(d => d.approved).length} / 3 已确认</span></div>
-    <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>
+    {drafts.length === 0
+      ? <div className="draft-empty"><FileText size={28}/><div><h3>还没有可编辑的项目</h3><p>你可以随时进入本页查看。提交岗位后，系统会自动匹配三个项目并在这里生成编辑框。</p></div></div>
+      : <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>}
     <div className="action-row"><p>只有三个项目均通过“恰好四条”校验后才能生成。</p><button className="primary-button" disabled={busy !== '' || !allApproved} onClick={onGenerate}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
   </div>
 }

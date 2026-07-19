@@ -19,6 +19,8 @@ main { display:grid; grid-template-columns: 210px minmax(0, 1fr); gap: 44px; pad
 .step-rail .active span { border-color:var(--ink); background:var(--ink); color:var(--lime); box-shadow:0 0 0 5px #d9e0da; }
 .step-rail .done { color:var(--green); }
 .step-rail .done span { border-color:var(--green); color:var(--green); }
+.step-rail .available { color:var(--ink); }
+.step-rail .available span { border-color:var(--green); color:var(--green); background:#edf3ed; }
 .workspace { min-width:0; }
 .panel { background:rgba(248,250,247,.94); border:1px solid #d3dbd4; border-radius:22px; padding:clamp(26px,4vw,52px); box-shadow:0 22px 60px rgba(39,57,47,.08); }
 .panel-heading { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:34px; }
@@ -70,6 +72,9 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .match-note p { line-height:1.45; color:#4d5a52; }
 .match-note small { color:#8a5a34; }
 .draft-stack { display:flex; flex-direction:column; gap:18px; }
+.draft-empty { display:flex; align-items:center; gap:16px; border:1px dashed #aebcb2; border-radius:15px; padding:24px; background:#f3f6f2; color:var(--green); }
+.draft-empty h3 { margin:0 0 6px; font:600 17px 'Segoe UI'; color:var(--ink); }
+.draft-empty p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
 .draft-editor { border:1px solid var(--line); background:#fff; border-radius:15px; padding:22px; transition:.2s border; }
 .draft-editor.approved { border-color:#77a285; box-shadow:inset 4px 0 #5b8e6c; }
 .draft-title { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:15px; }
