@@ -11,6 +11,7 @@ function App() {
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [generation, setGeneration] = useState<Generation | null>(null)
   const [step, setStep] = useState(1)
+  const [furthestStep, setFurthestStep] = useState(1)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
 
@@ -22,21 +23,56 @@ function App() {
     finally { setBusy('') }
   }
 
-  const createAndAnalyze = (form: JobFormValue) => run(
-    'analyze',
-    () => api.analyzeRaw(form.jobText),
-    app => { setApplication(app); setStep(2) },
-  )
+  const openStep = (nextStep: number) => {
+    setFurthestStep(current => Math.max(current, nextStep))
+    setStep(nextStep)
+  }
 
-  const saveAnalysisAndRecommend = (json: string) => {
+  const matchAndPrepareProjects = async (app: Application) => {
+    setBusy('auto-match')
+    const recs = await api.recommendations(app.id)
+    const projectIds = recs.map(rec => rec.project.id)
+    if (projectIds.length !== 3 || new Set(projectIds).size !== 3) {
+      throw new Error('项目匹配没有返回三个不同的项目')
+    }
+    setRecommendations(recs)
+    setSelected(projectIds)
+    setFurthestStep(current => Math.max(current, 3))
+
+    setBusy('auto-prepare')
+    const selectedApp = await api.select(app.id, projectIds)
+    const nextDrafts = await api.initDrafts(app.id)
+    setApplication(selectedApp)
+    setDrafts(nextDrafts)
+    openStep(4)
+  }
+
+  const createAndAnalyze = async (form: JobFormValue) => {
+    setBusy('analyze'); setError('')
+    try {
+      const app = await api.analyzeRaw(form.jobText)
+      setApplication(app)
+      openStep(2)
+      await matchAndPrepareProjects(app)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '操作失败')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const saveAnalysisAndRecommend = async (json: string) => {
     if (!application) return
-    run('recommend', async () => {
+    setBusy('auto-match'); setError('')
+    try {
       const app = await api.editAnalysis(application.id, json)
-      const recs = await api.recommendations(app.id)
-      return { app, recs }
-    }, ({ app, recs }) => {
-      setApplication(app); setRecommendations(recs); setSelected(recs.map(r => r.project.id)); setStep(3)
-    })
+      setApplication(app)
+      await matchAndPrepareProjects(app)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '操作失败')
+    } finally {
+      setBusy('')
+    }
   }
 
   const confirmSelection = () => {
@@ -45,7 +81,7 @@ function App() {
       const app = await api.select(application.id, selected)
       const nextDrafts = await api.initDrafts(application.id)
       return { app, nextDrafts }
-    }, ({ app, nextDrafts }) => { setApplication(app); setDrafts(nextDrafts); setStep(4) })
+    }, ({ app, nextDrafts }) => { setApplication(app); setDrafts(nextDrafts); openStep(4) })
   }
 
   const saveDraft = (position: number, latex: string, approve: boolean) => {
@@ -57,11 +93,11 @@ function App() {
 
   const generate = () => {
     if (!application) return
-    run('generate', () => api.generate(application.id), value => { setGeneration(value); setStep(5) })
+    run('generate', () => api.generate(application.id), value => { setGeneration(value); openStep(5) })
   }
 
   const reset = () => {
-    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setError(''); setStep(1)
+    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setError(''); setStep(1); setFurthestStep(1)
   }
 
   return (
@@ -76,13 +112,13 @@ function App() {
       </header>
 
       <main>
-        <StepRail current={step} onStep={s => s <= step && setStep(s)} />
+        <StepRail current={step} furthest={furthestStep} onStep={setStep} />
         {error && <div className="error-banner"><AlertCircle size={19}/><span>{error}</span></div>}
 
         <section className="workspace">
-          {step === 1 && <JobForm initial={application} busy={busy === 'analyze'} onSubmit={createAndAnalyze} />}
-          {step === 2 && application && <AnalysisStep application={application} busy={busy === 'recommend'} onContinue={saveAnalysisAndRecommend} />}
-          {step === 3 && <RecommendationStep recommendations={recommendations} projects={projects} selected={selected} setSelected={setSelected} busy={busy === 'prompts'} onContinue={confirmSelection} />}
+          {step === 1 && <JobForm initial={application} analyzing={busy === 'analyze'} locked={Boolean(busy)} onSubmit={createAndAnalyze} />}
+          {step === 2 && application && <AnalysisStep application={application} automationStage={busy === 'auto-match' || busy === 'auto-prepare' ? busy : ''} locked={Boolean(busy)} onContinue={saveAnalysisAndRecommend} />}
+          {step === 3 && <RecommendationStep recommendations={recommendations} projects={projects} selected={selected} setSelected={setSelected} busy={Boolean(busy)} onContinue={confirmSelection} />}
           {step === 4 && <DraftStep drafts={drafts} busy={busy} onSave={saveDraft} onGenerate={generate} />}
           {step === 5 && application && generation && <ExportStep application={application} generation={generation} />}
         </section>
@@ -93,19 +129,20 @@ function App() {
 }
 
 const steps = ['岗位输入', '岗位分析', '项目匹配', '项目编辑', '导出简历']
-function StepRail({ current, onStep }: { current: number; onStep: (step: number) => void }) {
+function StepRail({ current, furthest, onStep }: { current: number; furthest: number; onStep: (step: number) => void }) {
   return <nav className="step-rail" aria-label="生成步骤">
     {steps.map((label, index) => {
-      const number = index + 1; const state = number < current ? 'done' : number === current ? 'active' : ''
-      return <button key={label} className={state} disabled={number > current} onClick={() => onStep(number)}>
-        <span>{number < current ? <Check size={15}/> : number}</span><b>{label}</b>
+      const number = index + 1
+      const state = number === current ? 'active' : number <= furthest ? 'done' : ''
+      return <button key={label} className={state} disabled={number > furthest} onClick={() => onStep(number)}>
+        <span>{number <= furthest && number !== current ? <Check size={15}/> : number}</span><b>{label}</b>
       </button>
     })}
   </nav>
 }
 
 interface JobFormValue { jobText: string }
-function JobForm({ initial, busy, onSubmit }: { initial: Application | null; busy: boolean; onSubmit: (value: JobFormValue) => void }) {
+function JobForm({ initial, analyzing, locked, onSubmit }: { initial: Application | null; analyzing: boolean; locked: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
     jobText: initial?.jobDescription ?? '',
   })
@@ -116,11 +153,11 @@ function JobForm({ initial, busy, onSubmit }: { initial: Application | null; bus
       <Sparkles className="heading-icon" size={34}/>
     </div>
     <label>完整招聘信息 <small>可包含岗位名称、公司名称、职责和要求</small><textarea className="job-description" value={value.jobText} onChange={update('jobText')} placeholder="直接粘贴整段 Stellenanzeige，Gemini 会自动提取岗位名称、公司名称和岗位介绍…" /></label>
-    <div className="action-row"><p>此步骤只分析公司需要什么；个人经历会在项目匹配阶段作为证据使用。</p><button className="primary-button" disabled={busy || !value.jobText.trim()} onClick={() => onSubmit(value)}>{busy && <LoaderCircle className="spin" size={17}/>}提取并分析</button></div>
+    <div className="action-row"><p>此步骤只分析公司需要什么；个人经历会在项目匹配阶段作为证据使用。</p><button className="primary-button" disabled={locked || !value.jobText.trim()} onClick={() => onSubmit(value)}>{analyzing && <LoaderCircle className="spin" size={17}/>}提取并分析</button></div>
   </div>
 }
 
-function AnalysisStep({ application, busy, onContinue }: { application: Application; busy: boolean; onContinue: (json: string) => void }) {
+function AnalysisStep({ application, automationStage, locked, onContinue }: { application: Application; automationStage: string; locked: boolean; onContinue: (json: string) => void }) {
   const initial = application.analysisEditedJson ?? application.analysisJson ?? '{}'
   const [json, setJson] = useState(initial)
   const parsed = useMemo(() => { try { return JSON.parse(json) } catch { return null } }, [json])
@@ -132,7 +169,12 @@ function AnalysisStep({ application, busy, onContinue }: { application: Applicat
     </div>
     {parsed ? <AnalysisCards analysis={parsed} /> : <div className="inline-warning">JSON 格式暂时无效，请修正后继续。</div>}
     <details className="json-editor"><summary>编辑结构化分析 JSON</summary><textarea value={json} onChange={e => setJson(e.target.value)} spellCheck={false}/></details>
-    <div className="action-row"><p>不确定的要求应保留在 uncertainties，而不是自行补全。</p><button className="primary-button" disabled={busy || !parsed} onClick={() => onContinue(json)}>{busy && <LoaderCircle className="spin" size={17}/>}匹配项目</button></div>
+    <div className="action-row">
+      {automationStage
+        ? <p className="automation-status"><LoaderCircle className="spin" size={17}/>{automationStage === 'auto-match' ? '正在进行项目匹配…' : '正在准备项目编辑…'}</p>
+        : <p>回看不会重新调用 API；只有修改分析后点击右侧按钮才会重新匹配。</p>}
+      <button className="primary-button" disabled={locked || !parsed} onClick={() => onContinue(json)}>保存并重新匹配</button>
+    </div>
   </div>
 }
 
