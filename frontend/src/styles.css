@@ -72,10 +72,12 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .match-note p { line-height:1.45; color:#4d5a52; }
 .match-note small { color:#8a5a34; }
 .draft-stack { display:flex; flex-direction:column; gap:18px; }
+.manual-draft-stack { display:flex; flex-direction:column; gap:18px; }
 .draft-empty { display:flex; align-items:center; gap:16px; border:1px dashed #aebcb2; border-radius:15px; padding:24px; background:#f3f6f2; color:var(--green); }
 .draft-empty h3 { margin:0 0 6px; font:600 17px 'Segoe UI'; color:var(--ink); }
 .draft-empty p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
 .draft-editor { border:1px solid var(--line); background:#fff; border-radius:15px; padding:22px; transition:.2s border; }
+.manual-draft-editor { border-style:dashed; }
 .draft-editor.approved { border-color:#77a285; box-shadow:inset 4px 0 #5b8e6c; }
 .draft-title { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:15px; }
 .draft-title span { color:var(--green); font-size:10px; font-weight:700; letter-spacing:1.5px; }

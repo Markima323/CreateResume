@@ -143,6 +143,17 @@ function StepRail({ current, furthest, onStep }: { current: number; furthest: nu
 }
 
 interface JobFormValue { jobText: string }
+const LOCAL_DRAFTS_KEY = 'resume-workbench-project-drafts-v1'
+
+function loadLocalDraftTexts(): Record<number, string> {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(LOCAL_DRAFTS_KEY) ?? '{}') as Record<string, unknown>
+    return Object.fromEntries([1, 2, 3].map(position => [position, typeof value[position] === 'string' ? value[position] : '']))
+  } catch {
+    return { 1: '', 2: '', 3: '' }
+  }
+}
+
 function JobForm({ initial, analyzing, locked, onSubmit }: { initial: Application | null; analyzing: boolean; locked: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
     jobText: initial?.jobDescription ?? '',
@@ -218,16 +229,33 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
 }
 
 function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: () => void }) {
-  const [texts, setTexts] = useState<Record<number, string>>({})
-  useEffect(() => setTexts(Object.fromEntries(drafts.map(d => [d.position, d.latex ?? '']))), [drafts])
+  const [texts, setTexts] = useState<Record<number, string>>(loadLocalDraftTexts)
+  useEffect(() => setTexts(current => {
+    const next = { ...current }
+    drafts.forEach(draft => { if (draft.latex?.trim()) next[draft.position] = draft.latex })
+    return next
+  }), [drafts])
+  useEffect(() => {
+    try { window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(texts)) } catch { /* Browser storage can be unavailable. */ }
+  }, [texts])
   const allApproved = drafts.length === 3 && drafts.every(d => d.approved)
   return <div className="panel draft-panel">
-    <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。</p></div><span className="status-chip">{drafts.filter(d => d.approved).length} / 3 已确认</span></div>
+    <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>{drafts.length === 0 ? '直接粘贴或编辑已有的项目描述；内容会自动保存在当前浏览器。' : '复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。'}</p></div><span className="status-chip">{drafts.length === 0 ? '本地恢复模式' : `${drafts.filter(d => d.approved).length} / 3 已确认`}</span></div>
     {drafts.length === 0
-      ? <div className="draft-empty"><FileText size={28}/><div><h3>还没有可编辑的项目</h3><p>你可以随时进入本页查看。提交岗位后，系统会自动匹配三个项目并在这里生成编辑框。</p></div></div>
+      ? <div className="manual-draft-stack">
+          <div className="draft-empty"><FileText size={28}/><div><h3>未选择项目：本地编辑模式</h3><p>三个编辑框可以正常使用并自动保存在此浏览器，但此模式没有项目事实，因此不能复制 Codex Prompt。完成项目匹配后，已输入内容会保留并带入正式编辑框。</p></div></div>
+          {[1, 2, 3].map(position => <ManualDraftEditor key={position} position={position} value={texts[position] ?? ''} setValue={value => setTexts(current => ({ ...current, [position]: value }))} />)}
+        </div>
       : <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>}
-    <div className="action-row"><p>只有三个项目均通过“恰好四条”校验后才能生成。</p><button className="primary-button" disabled={busy !== '' || !allApproved} onClick={onGenerate}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
+    <div className="action-row"><p>{drafts.length === 0 ? '完成项目匹配后可以校验这三段内容并生成简历。' : '只有三个项目均通过“恰好四条”校验后才能生成。'}</p><button className="primary-button" disabled={busy !== '' || !allApproved} onClick={onGenerate}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
   </div>
+}
+
+function ManualDraftEditor({ position, value, setValue }: { position: number; value: string; setValue: (value: string) => void }) {
+  return <article className="draft-editor manual-draft-editor">
+    <div className="draft-title"><div><span>PROJECT 0{position}</span><h3>项目描述 {position}</h3></div><b>自动保存在浏览器</b></div>
+    <label>粘贴或编辑 LaTeX 项目描述<textarea className="latex-input" value={value} onChange={event => setValue(event.target.value)} placeholder="\resumeProjectHeading …" spellCheck={false}/></label>
+  </article>
 }
 
 function DraftEditor({ draft, value, setValue, busy, onSave }: { draft: Draft; value: string; setValue: (v: string) => void; busy: boolean; onSave: (position: number, latex: string, approve: boolean) => void }) {
