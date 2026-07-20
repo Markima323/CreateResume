@@ -41,9 +41,7 @@ public class PromptFactory {
                 <job_description>
                 %s
                 </job_description>
-                """.formatted(project.getNameZh(), safe(project.getNameDe()), project.getRoleText(), project.getSummary(),
-                project.getTechnologies(), project.getResponsibilities(), project.getOutcomes(), project.getFacts(),
-                safe(app.getAnalysisEditedJson()), app.getJobDescription());
+                """.formatted(safe(app.getAnalysisEditedJson()), app.getJobDescription());
     }
     private String safe(String value) { return value == null ? "" : value; }
 }
