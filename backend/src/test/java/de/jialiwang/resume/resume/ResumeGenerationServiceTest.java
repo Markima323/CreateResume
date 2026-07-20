@@ -35,6 +35,7 @@ class ResumeGenerationServiceTest {
         ResumeGeneration result = service.generateManual(application.getId(), List.of(project("A"), project("B"), project("C")));
 
         assertEquals(application.getId(), result.getApplicationId());
+        assertEquals("Lebenslauf-Jiali Wang-Manuell.pdf", service.downloadName(application.getId(), true));
         verify(renderer).render(argThat(projects -> projects.size() == 3));
     }
 

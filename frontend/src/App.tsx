@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Check, Clipboard, Download, FileText, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react'
 import { api } from './api'
 import type { Application, Draft, Generation, Project, Recommendation } from './types'
@@ -233,7 +233,7 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
 function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
   const [texts, setTexts] = useState<Record<number, string>>({})
   useEffect(() => setTexts(current => ({ ...current, ...Object.fromEntries(drafts.map(draft => [draft.position, draft.latex ?? current[draft.position] ?? ''])) })), [drafts])
-  const allApproved = drafts.length === 3 && drafts.every(d => d.approved)
+  const allApproved = drafts.length === 3 && drafts.every(d => d.approved && (texts[d.position] ?? '') === (d.latex ?? ''))
   const manualProjects = [1, 2, 3].map(position => texts[position] ?? '')
   const manualReady = manualProjects.every(value => value.trim())
   return <div className="panel draft-panel">
@@ -257,14 +257,21 @@ function ManualDraftEditor({ position, value, setValue }: { position: number; va
 
 function DraftEditor({ draft, value, setValue, busy, onSave }: { draft: Draft; value: string; setValue: (v: string) => void; busy: boolean; onSave: (position: number, latex: string, approve: boolean) => void }) {
   const [copied, setCopied] = useState(false)
+  const saveRef = useRef(onSave)
+  useEffect(() => { saveRef.current = onSave }, [onSave])
+  useEffect(() => {
+    if (value === (draft.latex ?? '')) return
+    const timer = window.setTimeout(() => saveRef.current(draft.position, value, true), 700)
+    return () => window.clearTimeout(timer)
+  }, [draft.latex, draft.position, value])
   const copy = async () => { await navigator.clipboard.writeText(draft.prompt); setCopied(true); window.setTimeout(() => setCopied(false), 1500) }
-  return <article className={`draft-editor ${draft.approved ? 'approved' : ''}`}>
-    <div className="draft-title"><div><span>PROJECT 0{draft.position}</span><h3>{draft.project.nameDe || draft.project.nameZh}</h3></div>{draft.approved && <b><Check size={15}/>已确认</b>}</div>
+  const pending = value !== (draft.latex ?? '')
+  return <article className={`draft-editor ${draft.approved && !pending ? 'approved' : ''}`}>
+    <div className="draft-title"><div><span>PROJECT 0{draft.position}</span><h3>{draft.project.nameDe || draft.project.nameZh}</h3></div><b>{busy || pending ? <><LoaderCircle className="spin" size={15}/>自动检查中</> : draft.approved ? <><Check size={15}/>已自动确认</> : '等待修改'}</b></div>
     <details><summary>查看项目事实</summary><p>{draft.project.summary}</p><p><b>事实边界：</b>{draft.project.facts}</p></details>
     <button className="copy-button" onClick={copy}>{copied ? <Check size={16}/> : <Clipboard size={16}/>} {copied ? '已复制' : '复制 Codex Prompt'}</button>
     <label>粘贴 Codex 生成的 LaTeX<textarea className="latex-input" value={value} onChange={e => setValue(e.target.value)} placeholder="\resumeProjectHeading …" spellCheck={false}/></label>
     {draft.errors.length > 0 && <ul className="validation-list">{draft.errors.map(e => <li key={e}>{e}</li>)}</ul>}
-    <div className="draft-actions"><button className="secondary-button" disabled={busy || !value.trim()} onClick={() => onSave(draft.position, value, false)}>保存并检查</button><button className="approve-button" disabled={busy || !value.trim()} onClick={() => onSave(draft.position, value, true)}>{busy && <LoaderCircle className="spin" size={15}/>}检查并确认</button></div>
   </article>
 }
 

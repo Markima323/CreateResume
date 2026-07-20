@@ -3,6 +3,7 @@ package de.jialiwang.resume.resume;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,12 +25,13 @@ public class GenerationController {
         return View.from(service.get(applicationId, generationId));
     }
     @GetMapping("/{generationId}/resume.tex") ResponseEntity<Resource> tex(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
-        return download(service.file(applicationId, generationId, false), "resume.tex", MediaType.TEXT_PLAIN);
+        return download(service.file(applicationId, generationId, false), service.downloadName(applicationId, false), MediaType.TEXT_PLAIN);
     }
     @GetMapping("/{generationId}/resume.pdf") ResponseEntity<Resource> pdf(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
-        return download(service.file(applicationId, generationId, true), "resume.pdf", MediaType.APPLICATION_PDF);
+        return download(service.file(applicationId, generationId, true), service.downloadName(applicationId, true), MediaType.APPLICATION_PDF);
     }
     private ResponseEntity<Resource> download(Resource resource, String name, MediaType type) {
-        return ResponseEntity.ok().contentType(type).header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + name + "\"").body(resource);
+        String disposition = ContentDisposition.attachment().filename(name, StandardCharsets.UTF_8).build().toString();
+        return ResponseEntity.ok().contentType(type).header(HttpHeaders.CONTENT_DISPOSITION, disposition).body(resource);
     }
 }

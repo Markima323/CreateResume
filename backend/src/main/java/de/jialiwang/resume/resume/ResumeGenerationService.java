@@ -104,5 +104,13 @@ public class ResumeGenerationService {
         if (!Files.isRegularFile(resolved)) throw new NotFoundException("生成文件不存在");
         return new FileSystemResource(resolved);
     }
+    public String downloadName(UUID applicationId, boolean pdf) {
+        String title = applications.get(applicationId).getJobTitle();
+        String safeTitle = title == null ? "Ohne-Stellenbezeichnung" : title
+                .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "-").trim();
+        if (safeTitle.isBlank()) safeTitle = "Ohne-Stellenbezeichnung";
+        if (safeTitle.length() > 100) safeTitle = safeTitle.substring(0, 100).trim();
+        return "Lebenslauf-Jiali Wang-" + safeTitle + (pdf ? ".pdf" : ".tex");
+    }
     private void ensureInsideRoot(Path path) { if (!path.startsWith(generationRoot)) throw new IllegalArgumentException("无效生成路径"); }
 }

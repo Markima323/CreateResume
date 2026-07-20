@@ -7,7 +7,7 @@ RUN mvn -q package -DskipTests
 
 FROM eclipse-temurin:21-jre-jammy
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-lang-german \
+    && apt-get install -y --no-install-recommends cm-super texlive-fonts-recommended texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-lang-german \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home app
 WORKDIR /app

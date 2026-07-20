@@ -1,33 +1,127 @@
+% Vollständige Lebenslaufvorlage; nur der Projektbereich wird dynamisch ersetzt.
 \documentclass[a4paper,11pt]{article}
+
+\usepackage{latexsym}
 \usepackage[empty]{fullpage}
 \usepackage{titlesec}
+\usepackage{marvosym}
 \usepackage[usenames,dvipsnames]{color}
-\usepackage[hidelinks]{hyperref}
 \usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
 \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 \usepackage[ngerman]{babel}
 \usepackage{tabularx}
-\pagestyle{empty}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+\raggedbottom
 \raggedright
 \setlength{\tabcolsep}{0in}
 \titleformat{\section}{\vspace{-4pt}\scshape\raggedright\large}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
-\newcommand{\resumeItem}[1]{\item\small{{#1 \vspace{-2pt}}}}
-\newcommand{\resumeProjectHeading}[2]{
-  \item
-  \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-    \small#1 & \small#2 \\
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{
+  \item\small{{#1 \vspace{-2pt}}}
+}
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & #2 \\
+    \textit{\small#3} & \textit{\small #4} \\
   \end{tabular*}\vspace{-7pt}
 }
+\newcommand{\resumeProjectHeading}[2]{
+  \item
+  \begin{tabularx}{\linewidth}[t]{@{}>{\raggedright\arraybackslash}X@{\hspace{1em}}>{\raggedleft\arraybackslash}p{0.18\linewidth}@{}}
+    \small#1 & \small#2 \\
+  \end{tabularx}\vspace{-7pt}
+}
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
 \newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in,label={}]}
 \newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
 \newcommand{\resumeItemListStart}{\begin{itemize}}
 \newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
 \begin{document}
+
 \begin{center}
-  \textbf{\Huge \scshape Jiali Wang}
+  \textbf{\Huge \scshape Jiali Wang} \\ \vspace{1pt}
+  \small Softwareentwicklerin mit Schwerpunkt KI- und Backend-Entwicklung \\
+  \small +49 151 5578 5518 $|$
+  \href{mailto:markima323@gmail.com}{\underline{markima323@gmail.com}} $|$
+  \href{https://github.com/Markima323}{\underline{github.com/Markima323}}
 \end{center}
+
+\section{Berufserfahrung}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Werkstudentin in der Softwareentwicklung}{05.2025 -- 06.2026}
+    {Vitech GmbH}{Hochheim, Deutschland}
+    \resumeItemListStart
+      \resumeItem{Konzipierte und implementierte eigenständig ein internes Zeiterfassungssystem mit Gesichtserkennung und verantwortete den gesamten Entwicklungsprozess von der Anforderungsanalyse bis zur Produktivsetzung.}
+      \resumeItem{Automatisierte interne Geschäftsprozesse durch die Entwicklung von Skripten sowie die Anbindung interner Schnittstellen und APIs.}
+      \resumeItem{Entwickelte eine Anwendung zur Erstellung und Verwaltung von Mitarbeiterausweisen und integrierte sie in bestehende Geräte- und Hardwareprozesse.}
+      \resumeItem{Analysierte und behob Systemfehler, erweiterte bestehende Anwendungen und dokumentierte technische Lösungen in Abstimmung mit den zuständigen Fachbereichen.}
+    \resumeItemListEnd
+  \resumeSubheading
+    {Frontend-Entwicklerin}{03.2022 -- 09.2022}
+    {Qingdao Xinshidian Network Technology Co., Ltd.}{Qingdao, China}
+    \resumeItemListStart
+      \resumeItem{Entwickelte responsive und benutzerfreundliche Weboberflächen mit HTML, CSS und JavaScript.}
+      \resumeItem{Erstellte UI-Konzepte und setzte Layouts, Farbkonzepte und visuelle Komponenten technisch um.}
+      \resumeItem{Optimierte bestehende Benutzeroberflächen im Hinblick auf Responsivität, Benutzerfreundlichkeit und visuelle Konsistenz.}
+    \resumeItemListEnd
+  \resumeSubheading
+    {Praktikantin im Bereich Telekommunikationstechnik}{05.2021 -- 11.2021}
+    {China Telecom}{Chongqing, China}
+    \resumeItemListStart
+      \resumeItem{Überwachte den Betriebszustand technischer Systeme im Rechenzentrum und unterstützte bei der Behebung auftretender Störungen.}
+      \resumeItem{Unterstützte die Überwachung und Wartung von Netzwerk- und Telekommunikationssystemen.}
+      \resumeItem{Analysierte technische Fehlermeldungen und dokumentierte Betriebs- und Wartungsmaßnahmen.}
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
 \section{Projekte}
 \resumeSubHeadingListStart
 %%PROJECTS%%
 \resumeSubHeadingListEnd
+
+\section{Studium}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Hochschule Darmstadt}{Darmstadt, Deutschland}
+    {Master of Science (M.Sc.) Informatik}{10.2023 -- 06.2026}
+  \resumeSubheading
+    {Southwest University}{Chongqing, China}
+    {Bachelor of Engineering (B.Eng.) Kommunikationstechnik}{09.2018 -- 06.2022}
+\resumeSubHeadingListEnd
+
+\section{Technische Kenntnisse}
+\begin{itemize}[leftmargin=0.15in,label={}]
+  \small{\item{
+    \textbf{Programmiersprachen:} Java, Python, C/C++, SQL, JavaScript, HTML/CSS \\
+    \textbf{Backend \& Frameworks:} Spring Boot, Spring Security, Spring Data JPA, WebClient, Flask, FastAPI, Node.js, REST APIs, SSE \\
+    \textbf{Frontend:} React, Vue.js, Vite, Element Plus, Axios \\
+    \textbf{KI \& Machine Learning:} PyTorch, TensorFlow, CUDA, OpenCV, ONNX Runtime, InsightFace, ComfyUI, DeepLabCut, Hunyuan3D, Ollama, Gemini API, lokale LLM-Inferenz \\
+    \textbf{Datenverarbeitung:} JSON Schema, pandas, NumPy, openpyxl, PyMuPDF, python-docx, CSV/H5/GLB \\
+    \textbf{Datenbanken:} PostgreSQL, MySQL, Flyway, JPA/Hibernate, Datenmodellierung \\
+    \textbf{DevOps \& Tools:} Git, Maven, Docker, Docker Compose, Nginx, Conda, PyInstaller, Linux, Windows \\
+    \textbf{Sprachen:} Deutsch (C1), Englisch (B2), Chinesisch (Muttersprache)
+  }}
+\end{itemize}
+
 \end{document}
