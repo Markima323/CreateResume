@@ -18,6 +18,11 @@ public class ApplicationController {
     ApplicationDtos.View analyzeRaw(@Valid @RequestBody ApplicationDtos.AnalyzeRawRequest request) {
         return ApplicationDtos.View.from(service.createFromRawAndAnalyze(request));
     }
+    @PutMapping("/{id}/analyze-raw")
+    ApplicationDtos.View updateAndAnalyzeRaw(@PathVariable UUID id,
+                                             @Valid @RequestBody ApplicationDtos.AnalyzeRawRequest request) {
+        return ApplicationDtos.View.from(service.updateFromRawAndAnalyze(id, request));
+    }
     @GetMapping("/{id}")
     ApplicationDtos.View get(@PathVariable UUID id) { return ApplicationDtos.View.from(service.get(id)); }
     @PatchMapping("/{id}")

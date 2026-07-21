@@ -11,18 +11,17 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/applications/{applicationId}/generations")
 public class GenerationController {
-    public record View(UUID id, String status, String errorMessage, OffsetDateTime createdAt) {
-        static View from(ResumeGeneration g) { return new View(g.getId(), g.getStatus(), g.getErrorMessage(), g.getCreatedAt()); }
-    }
+    public record View(UUID id, String status, String errorMessage, OffsetDateTime createdAt,
+                       List<String> sourceProjects) {}
     public record ManualRequest(List<String> projects) {}
     private final ResumeGenerationService service;
     public GenerationController(ResumeGenerationService service) { this.service = service; }
-    @PostMapping View generate(@PathVariable UUID applicationId) { return View.from(service.generate(applicationId)); }
+    @PostMapping View generate(@PathVariable UUID applicationId) { return view(service.generate(applicationId)); }
     @PostMapping("/manual") View generateManual(@PathVariable UUID applicationId, @RequestBody ManualRequest request) {
-        return View.from(service.generateManual(applicationId, request.projects()));
+        return view(service.generateManual(applicationId, request.projects()));
     }
     @GetMapping("/{generationId}") View get(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
-        return View.from(service.get(applicationId, generationId));
+        return view(service.get(applicationId, generationId));
     }
     @GetMapping("/{generationId}/resume.tex") ResponseEntity<Resource> tex(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
         return download(service.file(applicationId, generationId, false), service.downloadName(applicationId, false), MediaType.TEXT_PLAIN);
@@ -33,5 +32,9 @@ public class GenerationController {
     private ResponseEntity<Resource> download(Resource resource, String name, MediaType type) {
         String disposition = ContentDisposition.attachment().filename(name, StandardCharsets.UTF_8).build().toString();
         return ResponseEntity.ok().contentType(type).header(HttpHeaders.CONTENT_DISPOSITION, disposition).body(resource);
+    }
+    private View view(ResumeGeneration generation) {
+        return new View(generation.getId(), generation.getStatus(), generation.getErrorMessage(),
+                generation.getCreatedAt(), service.sourceProjects(generation));
     }
 }

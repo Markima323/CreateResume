@@ -62,6 +62,7 @@ export interface Generation {
   status: 'TEX_READY' | 'PDF_READY'
   errorMessage?: string
   createdAt: string
+  sourceProjects: string[]
 }
 
 export interface HistoryEntry {

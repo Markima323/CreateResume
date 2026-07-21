@@ -19,6 +19,10 @@ export const api = {
   analyzeRaw: (jobText: string) => request<Application>('/applications/analyze-raw', {
     method: 'POST', body: JSON.stringify({ jobText }),
   }),
+  updateAndAnalyzeRaw: (id: string, jobText: string) => request<Application>(`/applications/${id}/analyze-raw`, {
+    method: 'PUT', body: JSON.stringify({ jobText }),
+  }),
+  application: (id: string) => request<Application>(`/applications/${id}`),
   createApplication: (data: object) => request<Application>('/applications', { method: 'POST', body: JSON.stringify(data) }),
   updateApplication: (id: string, data: object) => request<Application>(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   analyze: (id: string) => request<Application>(`/applications/${id}/analyze`, { method: 'POST' }),
@@ -28,6 +32,7 @@ export const api = {
   select: (id: string, projectIds: string[]) => request<Application>(`/applications/${id}/selections`, { method: 'PUT', body: JSON.stringify({ projectIds }) }),
   initDrafts: (id: string) => request<Draft[]>(`/applications/${id}/drafts/prompts`, { method: 'POST' }),
   saveDraft: (id: string, position: number, latex: string, approve: boolean) => request<Draft>(`/applications/${id}/drafts/${position}`, { method: 'PUT', body: JSON.stringify({ latex, approve }) }),
+  drafts: (id: string) => request<Draft[]>(`/applications/${id}/drafts`),
   generate: (id: string) => request<Generation>(`/applications/${id}/generations`, { method: 'POST' }),
   generateManual: (id: string, projects: string[]) => request<Generation>(`/applications/${id}/generations/manual`, {
     method: 'POST', body: JSON.stringify({ projects }),
@@ -35,4 +40,5 @@ export const api = {
   downloadUrl: (applicationId: string, generationId: string, type: 'tex' | 'pdf') => `${BASE}/applications/${applicationId}/generations/${generationId}/resume.${type}`,
   history: () => request<HistoryEntry[]>('/history'),
   deleteHistory: (applicationId: string) => request<void>(`/history/${applicationId}`, { method: 'DELETE' }),
+  generation: (applicationId: string, generationId: string) => request<Generation>(`/applications/${applicationId}/generations/${generationId}`),
 }

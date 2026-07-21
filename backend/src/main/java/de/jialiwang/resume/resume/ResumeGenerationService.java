@@ -49,7 +49,7 @@ public class ResumeGenerationService {
             try { return mapper.readValue(d.getParsedJson(), ProjectLatexParser.ParsedProject.class); }
             catch (Exception e) { throw new IllegalStateException(e); }
         }).toList();
-        return generate(app, parsed);
+        return generate(app, parsed, projectDrafts.stream().map(ProjectDraft::getPastedLatex).toList());
     }
 
     @Transactional
@@ -62,10 +62,11 @@ public class ResumeGenerationService {
                 .mapToObj(index -> "项目 " + (index + 1) + "：" + String.join("；", parsed.get(index).errors()))
                 .collect(java.util.stream.Collectors.joining(" | "));
         if (!errors.isBlank()) throw new IllegalArgumentException(errors);
-        return generate(app, parsed);
+        return generate(app, parsed, List.copyOf(projects));
     }
 
-    private ResumeGeneration generate(JobApplication app, List<ProjectLatexParser.ParsedProject> parsed) {
+    private ResumeGeneration generate(JobApplication app, List<ProjectLatexParser.ParsedProject> parsed,
+                                      List<String> sourceProjects) {
         try {
             UUID generationId = UUID.randomUUID();
             Path dir = generationRoot.resolve(app.getId().toString()).resolve(generationId.toString()).normalize();
@@ -73,7 +74,8 @@ public class ResumeGenerationService {
             Path tex = dir.resolve("resume.tex");
             ResumeTailoring tailoring = ai.tailorResume(app, parsed);
             Files.writeString(tex, renderer.render(parsed, tailoring), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-            ResumeGeneration generation = generations.save(new ResumeGeneration(generationId, app, tex.toString()));
+            ResumeGeneration generation = generations.save(new ResumeGeneration(generationId, app, tex.toString(),
+                    mapper.writeValueAsString(sourceProjects)));
             compile(dir, generation);
             app.markGenerated();
             return generation;
@@ -114,6 +116,26 @@ public class ResumeGenerationService {
         if (safeTitle.isBlank()) safeTitle = "Ohne-Stellenbezeichnung";
         if (safeTitle.length() > 100) safeTitle = safeTitle.substring(0, 100).trim();
         return "Lebenslauf-Jiali Wang-" + safeTitle + (pdf ? ".pdf" : ".tex");
+    }
+    public List<String> sourceProjects(ResumeGeneration generation) {
+        try {
+            if (generation.getSourceProjectsJson() != null && !generation.getSourceProjectsJson().isBlank()) {
+                return mapper.readValue(generation.getSourceProjectsJson(),
+                        mapper.getTypeFactory().constructCollectionType(List.class, String.class));
+            }
+            String tex = Files.readString(Paths.get(generation.getTexPath()), StandardCharsets.UTF_8);
+            int start = tex.indexOf("\\section{Projekte}");
+            int end = tex.indexOf("\\section{Studium}", start);
+            if (start < 0 || end < 0) return List.of();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("(?s)(\\\\resumeProjectHeading.*?\\\\resumeItemListEnd)")
+                    .matcher(tex.substring(start, end));
+            java.util.ArrayList<String> result = new java.util.ArrayList<>();
+            while (matcher.find()) result.add(matcher.group(1).trim());
+            return List.copyOf(result);
+        } catch (Exception e) {
+            return List.of();
+        }
     }
     private void ensureInsideRoot(Path path) { if (!path.startsWith(generationRoot)) throw new IllegalArgumentException("无效生成路径"); }
 }

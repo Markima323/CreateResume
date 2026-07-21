@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Clipboard, Download, FileText, History, LoaderCircle, Pencil, RotateCcw, Sparkles, Trash2, X } from 'lucide-react'
+import { AlertCircle, Check, Clipboard, Download, FileText, History, LoaderCircle, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { api } from './api'
 import type { Application, Draft, Generation, HistoryEntry, Project, Recommendation } from './types'
 
@@ -19,6 +19,8 @@ function App() {
   const [historyEditing, setHistoryEditing] = useState(false)
   const [historyBusy, setHistoryBusy] = useState('')
   const [pendingDelete, setPendingDelete] = useState<HistoryEntry | null>(null)
+  const [historyLoading, setHistoryLoading] = useState('')
+  const [manualProjects, setManualProjects] = useState<string[]>([])
 
   const refreshHistory = () => api.history().then(setHistory).catch(e => setError(e.message))
 
@@ -60,7 +62,9 @@ function App() {
   const createAndAnalyze = async (form: JobFormValue) => {
     setBusy('analyze'); setError('')
     try {
-      const app = await api.analyzeRaw(form.jobText)
+      const app = application
+        ? await api.updateAndAnalyzeRaw(application.id, form.jobText)
+        : await api.analyzeRaw(form.jobText)
       setApplication(app)
       openStep(2)
       await matchAndPrepareProjects(app)
@@ -116,11 +120,11 @@ function App() {
       }
       const value = manualProjects ? await api.generateManual(target.id, manualProjects) : await api.generate(target.id)
       return { target, value }
-    }, ({ target, value }) => { setApplication(target); setGeneration(value); openStep(5); refreshHistory() })
+    }, ({ target, value }) => { setApplication(target); setGeneration(value); setManualProjects(value.sourceProjects ?? []); openStep(5); refreshHistory() })
   }
 
   const reset = () => {
-    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setError(''); setStep(1); setFurthestStep(1)
+    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setManualProjects([]); setError(''); setStep(1); setFurthestStep(1)
   }
 
   const deleteHistory = async () => {
@@ -138,6 +142,40 @@ function App() {
     }
   }
 
+  const openHistoryEntry = async (entry: HistoryEntry) => {
+    setHistoryLoading(entry.applicationId); setError('')
+    try {
+      const [restoredApplication, restoredDrafts, restoredGeneration] = await Promise.all([
+        api.application(entry.applicationId),
+        api.drafts(entry.applicationId),
+        api.generation(entry.applicationId, entry.generationId),
+      ])
+      const restoredRecommendations: Recommendation[] = []
+      restoredApplication.selectedProjectIds.forEach((projectId, index) => {
+        const project = restoredDrafts.find(draft => draft.project.id === projectId)?.project
+          ?? projects.find(candidate => candidate.id === projectId)
+        if (project) restoredRecommendations.push({
+          project, score: 100 - index, matchedKeywords: [], reason: '该项目是这份历史简历中保存的选择。',
+          gaps: [], source: 'LOCAL_FALLBACK',
+        })
+      })
+      setApplication(restoredApplication)
+      setDrafts(restoredDrafts)
+      setSelected(restoredApplication.selectedProjectIds)
+      setRecommendations(restoredRecommendations)
+      setGeneration(restoredGeneration)
+      setManualProjects(restoredDrafts.length === 0 ? restoredGeneration.sourceProjects ?? [] : [])
+      setFurthestStep(5)
+      setStep(restoredApplication.analysisEditedJson || restoredApplication.analysisJson ? 2 : 1)
+      setHistoryOpen(false)
+      setHistoryEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '无法打开历史记录')
+    } finally {
+      setHistoryLoading('')
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -147,8 +185,8 @@ function App() {
           <h1>让每个项目都对准目标岗位</h1>
         </div>
         <div className="top-actions">
+          <button className="ghost-button" onClick={reset}><Plus size={16}/> 创建新简历</button>
           <button className="ghost-button" onClick={() => { setHistoryOpen(true); refreshHistory() }}><History size={16}/> 历史记录</button>
-          {application && <button className="ghost-button top-reset" onClick={reset}><RotateCcw size={16}/> 新建</button>}
         </div>
       </header>
 
@@ -157,26 +195,26 @@ function App() {
         {error && <div className="error-banner"><AlertCircle size={19}/><span>{error}</span></div>}
 
         <section className="workspace">
-          {step === 1 && <JobForm initial={application} analyzing={busy === 'analyze'} locked={Boolean(busy)} onSubmit={createAndAnalyze} />}
-          {step === 2 && application && <AnalysisStep application={application} automationStage={busy === 'auto-match' || busy === 'auto-prepare' ? busy : ''} locked={Boolean(busy)} onContinue={saveAnalysisAndRecommend} />}
+          {step === 1 && <JobForm key={application?.id ?? 'new'} initial={application} analyzing={busy === 'analyze'} locked={Boolean(busy)} onSubmit={createAndAnalyze} />}
+          {step === 2 && application && <AnalysisStep key={application.id} application={application} automationStage={busy === 'auto-match' || busy === 'auto-prepare' ? busy : ''} locked={Boolean(busy)} onContinue={saveAnalysisAndRecommend} />}
           {step === 3 && <RecommendationStep recommendations={recommendations} projects={projects} selected={selected} setSelected={setSelected} busy={Boolean(busy)} onContinue={confirmSelection} />}
-          {step === 4 && <DraftStep drafts={drafts} busy={busy} onSave={saveDraft} onGenerate={generate} />}
+          {step === 4 && <DraftStep key={application?.id ?? 'manual'} drafts={drafts} initialManualProjects={manualProjects} busy={busy} onSave={saveDraft} onGenerate={generate} />}
           {step === 5 && application && generation && <ExportStep application={application} generation={generation} />}
         </section>
       </main>
       <footer>AI 负责整理与匹配，事实与最终表述由你确认。</footer>
-      <HistorySidebar entries={history} open={historyOpen} editing={historyEditing} busy={historyBusy}
+      <HistorySidebar entries={history} open={historyOpen} editing={historyEditing} busy={historyBusy} loading={historyLoading}
         onClose={() => { setHistoryOpen(false); setHistoryEditing(false) }}
-        onToggleEditing={() => setHistoryEditing(value => !value)} onDelete={setPendingDelete}/>
+        onToggleEditing={() => setHistoryEditing(value => !value)} onDelete={setPendingDelete} onOpen={openHistoryEntry}/>
       {pendingDelete && <ConfirmDelete entry={pendingDelete} busy={historyBusy === pendingDelete.applicationId}
         onCancel={() => !historyBusy && setPendingDelete(null)} onConfirm={deleteHistory}/>}
     </div>
   )
 }
 
-function HistorySidebar({ entries, open, editing, busy, onClose, onToggleEditing, onDelete }: {
-  entries: HistoryEntry[]; open: boolean; editing: boolean; busy: string
-  onClose: () => void; onToggleEditing: () => void; onDelete: (entry: HistoryEntry) => void
+function HistorySidebar({ entries, open, editing, busy, loading, onClose, onToggleEditing, onDelete, onOpen }: {
+  entries: HistoryEntry[]; open: boolean; editing: boolean; busy: string; loading: string
+  onClose: () => void; onToggleEditing: () => void; onDelete: (entry: HistoryEntry) => void; onOpen: (entry: HistoryEntry) => void
 }) {
   return <>
     {open && <button className="history-backdrop" aria-label="关闭历史记录" onClick={onClose}/>}
@@ -192,7 +230,10 @@ function HistorySidebar({ entries, open, editing, busy, onClose, onToggleEditing
       <div className="history-list">
         {entries.length === 0 && <div className="history-empty"><FileText size={25}/><p>还没有成功生成的 PDF 简历。</p></div>}
         {entries.map(entry => <article className="history-entry" key={entry.applicationId}>
-          <div className="history-entry-text"><b>{entry.jobTitle}</b>{entry.companyName && <span>{entry.companyName}</span>}<small>{new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.generatedAt))}</small></div>
+          <button className="history-entry-open" disabled={Boolean(loading)} onClick={() => onOpen(entry)}>
+            <span className="history-entry-text"><b>{entry.jobTitle}</b>{entry.companyName && <span>{entry.companyName}</span>}<small>{new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.generatedAt))}</small></span>
+            {loading === entry.applicationId && <LoaderCircle className="spin history-open-loader" size={16}/>}
+          </button>
           {editing
             ? <button className="history-icon danger" disabled={Boolean(busy)} aria-label={`删除 ${entry.jobTitle}`} title="删除" onClick={() => onDelete(entry)}>{busy === entry.applicationId ? <LoaderCircle className="spin" size={18}/> : <Trash2 size={18}/>}</button>
             : <a className="history-icon" href={api.downloadUrl(entry.applicationId, entry.generationId, 'pdf')} aria-label={`下载 ${entry.jobTitle}`} title="下载 PDF"><Download size={18}/></a>}
@@ -234,7 +275,9 @@ function StepRail({ current, furthest, onStep }: { current: number; furthest: nu
 interface JobFormValue { jobText: string }
 function JobForm({ initial, analyzing, locked, onSubmit }: { initial: Application | null; analyzing: boolean; locked: boolean; onSubmit: (value: JobFormValue) => void }) {
   const [value, setValue] = useState<JobFormValue>({
-    jobText: initial?.jobDescription ?? '',
+    jobText: initial
+      ? [`Stellenbezeichnung: ${initial.jobTitle}`, initial.companyName ? `Unternehmen: ${initial.companyName}` : '', '', initial.jobDescription].filter((line, index) => line || index === 2).join('\n')
+      : '',
   })
   const update = (key: keyof JobFormValue) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(v => ({ ...v, [key]: e.target.value }))
   return <div className="panel intro-panel">
@@ -306,8 +349,8 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
   </div>
 }
 
-function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
-  const [texts, setTexts] = useState<Record<number, string>>({})
+function DraftStep({ drafts, initialManualProjects, busy, onSave, onGenerate }: { drafts: Draft[]; initialManualProjects: string[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
+  const [texts, setTexts] = useState<Record<number, string>>(() => Object.fromEntries(initialManualProjects.map((value, index) => [index + 1, value])))
   useEffect(() => setTexts(current => ({ ...current, ...Object.fromEntries(drafts.map(draft => [draft.position, draft.latex ?? current[draft.position] ?? ''])) })), [drafts])
   const allApproved = drafts.length === 3 && drafts.every(d => d.approved && (texts[d.position] ?? '') === (d.latex ?? ''))
   const manualProjects = [1, 2, 3].map(position => texts[position] ?? '')

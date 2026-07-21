@@ -43,6 +43,17 @@ public class ApplicationService {
         return applications.save(application);
     }
 
+    @Transactional
+    public JobApplication updateFromRawAndAnalyze(UUID id, ApplicationDtos.AnalyzeRawRequest request) {
+        GeminiService.ExtractedJob extracted = ai.extractAndAnalyzeJob(request.jobText());
+        JobApplication application = get(id);
+        application.update(normalize(extracted.jobTitle(), "未识别岗位", 250),
+                normalize(extracted.companyName(), "", 250),
+                normalize(extracted.jobDescription(), request.jobText(), 20000), null);
+        application.saveAnalysis(extracted.analysisJson());
+        return application;
+    }
+
     @Transactional(readOnly = true)
     public JobApplication get(UUID id) { return applications.findById(id).orElseThrow(() -> new NotFoundException("求职申请不存在")); }
 
