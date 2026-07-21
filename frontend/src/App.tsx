@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, Clipboard, Download, FileText, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertCircle, Check, Clipboard, Download, FileText, History, LoaderCircle, Pencil, RotateCcw, Sparkles, Trash2, X } from 'lucide-react'
 import { api } from './api'
-import type { Application, Draft, Generation, Project, Recommendation } from './types'
+import type { Application, Draft, Generation, HistoryEntry, Project, Recommendation } from './types'
 
 function App() {
   const [application, setApplication] = useState<Application | null>(null)
@@ -14,8 +14,18 @@ function App() {
   const [furthestStep, setFurthestStep] = useState(1)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyEditing, setHistoryEditing] = useState(false)
+  const [historyBusy, setHistoryBusy] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<HistoryEntry | null>(null)
 
-  useEffect(() => { api.projects().then(setProjects).catch(e => setError(e.message)) }, [])
+  const refreshHistory = () => api.history().then(setHistory).catch(e => setError(e.message))
+
+  useEffect(() => {
+    api.projects().then(setProjects).catch(e => setError(e.message))
+    refreshHistory()
+  }, [])
 
   const run = async <T,>(label: string, action: () => Promise<T>, done: (value: T) => void) => {
     setBusy(label); setError('')
@@ -106,11 +116,26 @@ function App() {
       }
       const value = manualProjects ? await api.generateManual(target.id, manualProjects) : await api.generate(target.id)
       return { target, value }
-    }, ({ target, value }) => { setApplication(target); setGeneration(value); openStep(5) })
+    }, ({ target, value }) => { setApplication(target); setGeneration(value); openStep(5); refreshHistory() })
   }
 
   const reset = () => {
     setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setError(''); setStep(1); setFurthestStep(1)
+  }
+
+  const deleteHistory = async () => {
+    if (!pendingDelete) return
+    setHistoryBusy(pendingDelete.applicationId); setError('')
+    try {
+      await api.deleteHistory(pendingDelete.applicationId)
+      setHistory(current => current.filter(entry => entry.applicationId !== pendingDelete.applicationId))
+      if (application?.id === pendingDelete.applicationId) reset()
+      setPendingDelete(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败')
+    } finally {
+      setHistoryBusy('')
+    }
   }
 
   return (
@@ -121,7 +146,10 @@ function App() {
           <p className="eyebrow">RESUME WERKSTATT</p>
           <h1>让每个项目都对准目标岗位</h1>
         </div>
-        {application && <button className="ghost-button top-reset" onClick={reset}><RotateCcw size={16}/> 新建</button>}
+        <div className="top-actions">
+          <button className="ghost-button" onClick={() => { setHistoryOpen(true); refreshHistory() }}><History size={16}/> 历史记录</button>
+          {application && <button className="ghost-button top-reset" onClick={reset}><RotateCcw size={16}/> 新建</button>}
+        </div>
       </header>
 
       <main>
@@ -137,8 +165,56 @@ function App() {
         </section>
       </main>
       <footer>AI 负责整理与匹配，事实与最终表述由你确认。</footer>
+      <HistorySidebar entries={history} open={historyOpen} editing={historyEditing} busy={historyBusy}
+        onClose={() => { setHistoryOpen(false); setHistoryEditing(false) }}
+        onToggleEditing={() => setHistoryEditing(value => !value)} onDelete={setPendingDelete}/>
+      {pendingDelete && <ConfirmDelete entry={pendingDelete} busy={historyBusy === pendingDelete.applicationId}
+        onCancel={() => !historyBusy && setPendingDelete(null)} onConfirm={deleteHistory}/>}
     </div>
   )
+}
+
+function HistorySidebar({ entries, open, editing, busy, onClose, onToggleEditing, onDelete }: {
+  entries: HistoryEntry[]; open: boolean; editing: boolean; busy: string
+  onClose: () => void; onToggleEditing: () => void; onDelete: (entry: HistoryEntry) => void
+}) {
+  return <>
+    {open && <button className="history-backdrop" aria-label="关闭历史记录" onClick={onClose}/>}
+    <aside className={`history-drawer ${open ? 'open' : ''}`} aria-hidden={!open}>
+      <div className="history-heading">
+        <div><p className="section-number">ARCHIV</p><h2>历史记录</h2></div>
+        <div className="history-tools">
+          <button className={editing ? 'active' : ''} aria-label={editing ? '退出编辑' : '编辑历史记录'} title={editing ? '退出编辑' : '编辑历史记录'} onClick={onToggleEditing}><Pencil size={17}/></button>
+          <button aria-label="关闭历史记录" title="关闭" onClick={onClose}><X size={20}/></button>
+        </div>
+      </div>
+      {editing && <p className="history-edit-note">编辑模式：删除会同时移除该岗位的分析、项目草稿和全部简历文件。</p>}
+      <div className="history-list">
+        {entries.length === 0 && <div className="history-empty"><FileText size={25}/><p>还没有成功生成的 PDF 简历。</p></div>}
+        {entries.map(entry => <article className="history-entry" key={entry.applicationId}>
+          <div className="history-entry-text"><b>{entry.jobTitle}</b>{entry.companyName && <span>{entry.companyName}</span>}<small>{new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.generatedAt))}</small></div>
+          {editing
+            ? <button className="history-icon danger" disabled={Boolean(busy)} aria-label={`删除 ${entry.jobTitle}`} title="删除" onClick={() => onDelete(entry)}>{busy === entry.applicationId ? <LoaderCircle className="spin" size={18}/> : <Trash2 size={18}/>}</button>
+            : <a className="history-icon" href={api.downloadUrl(entry.applicationId, entry.generationId, 'pdf')} aria-label={`下载 ${entry.jobTitle}`} title="下载 PDF"><Download size={18}/></a>}
+        </article>)}
+      </div>
+    </aside>
+  </>
+}
+
+function ConfirmDelete({ entry, busy, onCancel, onConfirm }: { entry: HistoryEntry; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return <div className="confirm-layer" role="presentation">
+    <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+      <div className="confirm-icon"><Trash2 size={23}/></div>
+      <h2 id="delete-title">确定删除这条记录吗？</h2>
+      <p><b>{entry.jobTitle}</b></p>
+      <small>对应的岗位分析、项目内容、生成记录、TeX 和 PDF 文件都会被永久删除，无法恢复。</small>
+      <div className="confirm-actions">
+        <button className="secondary-button" disabled={busy} onClick={onCancel}>取消</button>
+        <button className="delete-button" disabled={busy} onClick={onConfirm}>{busy && <LoaderCircle className="spin" size={16}/>}确定删除</button>
+      </div>
+    </div>
+  </div>
 }
 
 const steps = ['岗位输入', '岗位分析', '项目匹配', '项目编辑', '导出简历']

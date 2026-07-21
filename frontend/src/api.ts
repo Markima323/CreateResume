@@ -1,4 +1,4 @@
-import type { Application, Draft, Generation, Project, Recommendation } from './types'
+import type { Application, Draft, Generation, HistoryEntry, Project, Recommendation } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
@@ -11,6 +11,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const problem = await response.json().catch(() => ({}))
     throw new Error(problem.detail ?? problem.title ?? `请求失败 (${response.status})`)
   }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -32,4 +33,6 @@ export const api = {
     method: 'POST', body: JSON.stringify({ projects }),
   }),
   downloadUrl: (applicationId: string, generationId: string, type: 'tex' | 'pdf') => `${BASE}/applications/${applicationId}/generations/${generationId}/resume.${type}`,
+  history: () => request<HistoryEntry[]>('/history'),
+  deleteHistory: (applicationId: string) => request<void>(`/history/${applicationId}`, { method: 'DELETE' }),
 }

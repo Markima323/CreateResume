@@ -63,3 +63,11 @@ export interface Generation {
   errorMessage?: string
   createdAt: string
 }
+
+export interface HistoryEntry {
+  applicationId: string
+  jobTitle: string
+  companyName: string
+  generationId: string
+  generatedAt: string
+}

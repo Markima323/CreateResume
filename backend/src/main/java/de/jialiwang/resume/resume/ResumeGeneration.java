@@ -24,6 +24,7 @@ public class ResumeGeneration {
     public void failed(String message) { this.status = "TEX_READY"; this.errorMessage = message; }
     public UUID getId() { return id; }
     public UUID getApplicationId() { return application.getId(); }
+    JobApplication getApplication() { return application; }
     public String getTexPath() { return texPath; }
     public String getPdfPath() { return pdfPath; }
     public String getStatus() { return status; }
