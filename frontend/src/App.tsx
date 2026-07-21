@@ -180,6 +180,7 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
+        <button className="ghost-button history-trigger" onClick={() => { setHistoryOpen(true); refreshHistory() }}><History size={16}/> 历史记录</button>
         <div className="brand-mark">RW</div>
         <div>
           <p className="eyebrow">RESUME WERKSTATT</p>
@@ -187,7 +188,6 @@ function App() {
         </div>
         <div className="top-actions">
           <button className="ghost-button" onClick={reset}><Plus size={16}/> 创建新简历</button>
-          <button className="ghost-button" onClick={() => { setHistoryOpen(true); refreshHistory() }}><History size={16}/> 历史记录</button>
         </div>
       </header>
 
