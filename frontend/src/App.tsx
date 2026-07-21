@@ -56,6 +56,7 @@ function App() {
     const nextDrafts = await api.initDrafts(app.id)
     setApplication(selectedApp)
     setDrafts(nextDrafts)
+    setManualProjects([])
     openStep(4)
   }
 
@@ -95,7 +96,7 @@ function App() {
       const app = await api.select(application.id, selected)
       const nextDrafts = await api.initDrafts(application.id)
       return { app, nextDrafts }
-    }, ({ app, nextDrafts }) => { setApplication(app); setDrafts(nextDrafts); openStep(4) })
+    }, ({ app, nextDrafts }) => { setApplication(app); setDrafts(nextDrafts); setManualProjects([]); openStep(4) })
   }
 
   const saveDraft = (position: number, latex: string, approve: boolean) => {
