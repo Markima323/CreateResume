@@ -1,6 +1,7 @@
 package de.jialiwang.resume.resume;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.jialiwang.resume.ai.GeminiService;
 import de.jialiwang.resume.application.ApplicationService;
 import de.jialiwang.resume.application.JobApplication;
 import de.jialiwang.resume.common.NotFoundException;
@@ -27,13 +28,14 @@ public class ResumeGenerationService {
     private final LatexRenderer renderer;
     private final ProjectLatexParser parser;
     private final ObjectMapper mapper;
+    private final GeminiService ai;
 
     public ResumeGenerationService(@Value("${app.generation-dir}") String generationDir, ApplicationService applications,
                                    ProjectDraftRepository drafts, ResumeGenerationRepository generations,
-                                   LatexRenderer renderer, ProjectLatexParser parser, ObjectMapper mapper) {
+                                   LatexRenderer renderer, ProjectLatexParser parser, ObjectMapper mapper, GeminiService ai) {
         this.generationRoot = Paths.get(generationDir).toAbsolutePath().normalize();
         this.applications = applications; this.drafts = drafts; this.generations = generations;
-        this.renderer = renderer; this.parser = parser; this.mapper = mapper;
+        this.renderer = renderer; this.parser = parser; this.mapper = mapper; this.ai = ai;
     }
 
     @Transactional
@@ -69,7 +71,8 @@ public class ResumeGenerationService {
             Path dir = generationRoot.resolve(app.getId().toString()).resolve(generationId.toString()).normalize();
             ensureInsideRoot(dir); Files.createDirectories(dir);
             Path tex = dir.resolve("resume.tex");
-            Files.writeString(tex, renderer.render(parsed), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+            ResumeTailoring tailoring = ai.tailorResume(app, parsed);
+            Files.writeString(tex, renderer.render(parsed, tailoring), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
             ResumeGeneration generation = generations.save(new ResumeGeneration(generationId, app, tex.toString()));
             compile(dir, generation);
             app.markGenerated();

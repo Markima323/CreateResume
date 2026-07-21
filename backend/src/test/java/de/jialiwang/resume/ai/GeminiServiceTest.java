@@ -2,6 +2,10 @@ package de.jialiwang.resume.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import de.jialiwang.resume.application.JobApplication;
+import de.jialiwang.resume.projectdraft.ProjectLatexParser;
+import de.jialiwang.resume.resume.ResumeProfile;
+import de.jialiwang.resume.resume.ResumeTailoring;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -15,6 +19,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+import java.util.List;
 
 class GeminiServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
@@ -66,5 +72,62 @@ class GeminiServiceTest {
         assertThatThrownBy(() -> service.extractAndAnalyzeJob("Stellenanzeige"))
                 .isInstanceOf(AiUnavailableException.class)
                 .hasMessageContaining("GEMINI_API_KEY");
+    }
+
+    @Test
+    void createsFinalJobSpecificTailoringWithoutChangingFacts() throws Exception {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://generativelanguage.googleapis.com/v1beta");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        GeminiService service = new GeminiService(builder.build(),
+                new GeminiProperties("test-key", "gemini-3.5-flash", "unused", false, "medium"), mapper);
+
+        ObjectNode output = mapper.createObjectNode()
+                .put("headline", "Softwareentwicklerin mit Schwerpunkt IT- und Netzwerktechnik");
+        output.putArray("projects")
+                .add(projectPlan(2, 1, 2, 3, 4))
+                .add(projectPlan(0, 1, 3))
+                .add(projectPlan(1, 2, 3, 4));
+        var skillGroups = output.putArray("skillGroups");
+        for (int index : List.of(6, 0, 1, 5, 2, 4, 3)) {
+            ResumeProfile.SkillCategory category = ResumeProfile.SKILL_CATEGORIES.get(index);
+            ObjectNode group = mapper.createObjectNode().put("categoryId", category.id());
+            group.set("skills", mapper.valueToTree(category.skills()));
+            skillGroups.add(group);
+        }
+        ObjectNode modelOutput = mapper.createObjectNode().put("type", "model_output");
+        modelOutput.putArray("content").add(mapper.createObjectNode().put("type", "text")
+                .put("text", mapper.writeValueAsString(output)));
+        ObjectNode response = mapper.createObjectNode();
+        response.putArray("steps").add(modelOutput);
+
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/interactions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.input").value(org.hamcrest.Matchers.containsString("Netzwerktechnik")))
+                .andRespond(withSuccess(mapper.writeValueAsString(response), MediaType.APPLICATION_JSON));
+
+        JobApplication application = new JobApplication("IT- und Netzwerktechnik", "", "Netzwerktechnik", "");
+        ProjectLatexParser parser = new ProjectLatexParser();
+        List<ProjectLatexParser.ParsedProject> projects = List.of(parsed(parser, "A"), parsed(parser, "B"), parsed(parser, "C"));
+        ResumeTailoring result = service.tailorResume(application, projects);
+
+        assertThat(result.headline()).endsWith("IT- und Netzwerktechnik");
+        assertThat(result.projects().get(0).sourceIndex()).isEqualTo(2);
+        assertThat(result.projects().get(0).itemNumbers()).hasSize(4);
+        assertThat(result.projects().get(1).itemNumbers()).hasSize(2);
+        assertThat(result.skillGroups().get(0).categoryId()).isEqualTo("devops");
+        server.verify();
+    }
+
+    private ObjectNode projectPlan(int sourceIndex, int... itemNumbers) {
+        ObjectNode plan = mapper.createObjectNode().put("sourceIndex", sourceIndex);
+        var items = plan.putArray("itemNumbers");
+        for (int number : itemNumbers) items.add(number);
+        return plan;
+    }
+
+    private ProjectLatexParser.ParsedProject parsed(ProjectLatexParser parser, String title) {
+        return parser.parse("\\resumeProjectHeading {\\textbf{" + title + "} $|$ \\emph{Java}} {Einzelentwicklung} "
+                + "\\resumeItemListStart \\resumeItem{Eins} \\resumeItem{Zwei} "
+                + "\\resumeItem{Drei} \\resumeItem{Vier} \\resumeItemListEnd");
     }
 }

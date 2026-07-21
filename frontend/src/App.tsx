@@ -244,7 +244,7 @@ function DraftStep({ drafts, busy, onSave, onGenerate }: { drafts: Draft[]; busy
           {[1, 2, 3].map(position => <ManualDraftEditor key={position} position={position} value={texts[position] ?? ''} setValue={value => setTexts(current => ({ ...current, [position]: value }))} />)}
         </div>
       : <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>}
-    <div className="action-row"><p>{drafts.length === 0 ? '三个框都有文字即可提交；格式错误会在生成时明确提示。' : '只有三个项目均通过“恰好四条”校验后才能生成。'}</p><button className="primary-button" disabled={busy !== '' || (drafts.length === 0 ? !manualReady : !allApproved)} onClick={() => drafts.length === 0 ? onGenerate(manualProjects) : onGenerate()}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
+    <div className="action-row"><p>{drafts.length === 0 ? '三个框都有文字即可提交；格式错误会在生成时明确提示。' : '三个项目通过四条内容校验后，Gemini 会在最终汇总时自动排序、压缩次要项目并重排技能。'}</p><button className="primary-button" disabled={busy !== '' || (drafts.length === 0 ? !manualReady : !allApproved)} onClick={() => drafts.length === 0 ? onGenerate(manualProjects) : onGenerate()}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
   </div>
 }
 
