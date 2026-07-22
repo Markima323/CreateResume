@@ -25,6 +25,20 @@ public class PortfolioProject {
     @Column(name = "updated_at", nullable = false) private OffsetDateTime updatedAt;
 
     protected PortfolioProject() {}
+    static PortfolioProject from(ProjectCatalogEntry entry) {
+        PortfolioProject project = new PortfolioProject();
+        project.id = entry.id();
+        project.createdAt = OffsetDateTime.now();
+        return project;
+    }
+    void synchronize(ProjectCatalogEntry entry) {
+        this.slug = entry.slug(); this.nameZh = entry.nameZh(); this.nameDe = entry.nameDe();
+        this.projectType = entry.projectType(); this.roleText = entry.roleText(); this.summary = entry.summary();
+        this.technologies = entry.technologies(); this.responsibilities = entry.responsibilities();
+        this.outcomes = entry.outcomes(); this.facts = entry.facts(); this.keywords = entry.keywords();
+        this.sensitive = entry.sensitive(); this.enabled = entry.enabled(); this.updatedAt = OffsetDateTime.now();
+    }
+    void disable() { this.enabled = false; this.updatedAt = OffsetDateTime.now(); }
     public UUID getId() { return id; }
     public String getSlug() { return slug; }
     public String getNameZh() { return nameZh; }

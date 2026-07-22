@@ -32,7 +32,7 @@ public class RecommendationService {
         String analysis = application.getAnalysisEditedJson();
         if (analysis == null || analysis.isBlank()) throw new IllegalArgumentException("请先完成岗位分析");
         List<Scored> local = localRank(application, projects.findAllByEnabledTrueOrderByNameZh());
-        List<PortfolioProject> candidates = local.stream().limit(10).map(Scored::project).toList();
+        List<PortfolioProject> candidates = local.stream().map(Scored::project).toList();
         try {
             List<Recommendation> aiResults = parseAi(ai.rankProjects(analysis, candidates), candidates);
             if (aiResults.size() == 3) return aiResults;
