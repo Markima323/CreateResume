@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Check, Clipboard, Download, FileText, History, LoaderCircle, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { api } from './api'
-import type { Application, Draft, Generation, HistoryEntry, Project, Recommendation } from './types'
+import type { Application, Draft, Generation, HistoryEntry, MotivationLetter, Project, Recommendation } from './types'
 
 function App() {
   const [application, setApplication] = useState<Application | null>(null)
@@ -21,6 +21,8 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState<HistoryEntry | null>(null)
   const [historyLoading, setHistoryLoading] = useState('')
   const [manualProjects, setManualProjects] = useState<string[]>([])
+  const [resumeVersion, setResumeVersion] = useState<'WORK' | 'UPWORK'>('WORK')
+  const [motivationLetter, setMotivationLetter] = useState<MotivationLetter | null>(null)
 
   const refreshHistory = () => api.history().then(setHistory).catch(e => setError(e.message))
 
@@ -119,13 +121,13 @@ function App() {
         })
         setApplication(target)
       }
-      const value = manualProjects ? await api.generateManual(target.id, manualProjects) : await api.generate(target.id)
+      const value = manualProjects ? await api.generateManual(target.id, manualProjects, resumeVersion) : await api.generate(target.id, resumeVersion)
       return { target, value }
     }, ({ target, value }) => { setApplication(target); setGeneration(value); setManualProjects(value.sourceProjects ?? []); openStep(5); refreshHistory() })
   }
 
   const reset = () => {
-    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setManualProjects([]); setError(''); setStep(1); setFurthestStep(1)
+    setApplication(null); setRecommendations([]); setSelected([]); setDrafts([]); setGeneration(null); setManualProjects([]); setResumeVersion('WORK'); setMotivationLetter(null); setError(''); setStep(1); setFurthestStep(1)
   }
 
   const deleteHistory = async () => {
@@ -165,8 +167,11 @@ function App() {
       setSelected(restoredApplication.selectedProjectIds)
       setRecommendations(restoredRecommendations)
       setGeneration(restoredGeneration)
+      setResumeVersion(restoredGeneration.version ?? 'WORK')
+      const restoredLetter = await api.latestMotivationLetter(entry.applicationId, entry.generationId)
+      setMotivationLetter(restoredLetter ?? null)
       setManualProjects(restoredDrafts.length === 0 ? restoredGeneration.sourceProjects ?? [] : [])
-      setFurthestStep(5)
+      setFurthestStep(restoredLetter ? 6 : 5)
       setStep(restoredApplication.analysisEditedJson || restoredApplication.analysisJson ? 2 : 1)
       setHistoryOpen(false)
       setHistoryEditing(false)
@@ -199,8 +204,9 @@ function App() {
           {step === 1 && <JobForm key={application?.id ?? 'new'} initial={application} analyzing={busy === 'analyze'} locked={Boolean(busy)} onSubmit={createAndAnalyze} />}
           {step === 2 && application && <AnalysisStep key={application.id} application={application} automationStage={busy === 'auto-match' || busy === 'auto-prepare' ? busy : ''} locked={Boolean(busy)} onContinue={saveAnalysisAndRecommend} />}
           {step === 3 && <RecommendationStep recommendations={recommendations} projects={projects} selected={selected} setSelected={setSelected} busy={Boolean(busy)} onContinue={confirmSelection} />}
-          {step === 4 && <DraftStep key={application?.id ?? 'manual'} drafts={drafts} initialManualProjects={manualProjects} busy={busy} onSave={saveDraft} onGenerate={generate} />}
-          {step === 5 && application && generation && <ExportStep application={application} generation={generation} />}
+          {step === 4 && <DraftStep key={application?.id ?? 'manual'} drafts={drafts} initialManualProjects={manualProjects} busy={busy} version={resumeVersion} setVersion={setResumeVersion} onSave={saveDraft} onGenerate={generate} />}
+          {step === 5 && application && generation && <ExportStep application={application} generation={generation} onContinue={() => openStep(6)} />}
+          {step === 6 && application && generation && <MotivationStep application={application} generation={generation} initial={motivationLetter} busy={busy === 'motivation'} onGenerated={setMotivationLetter} run={run} />}
         </section>
       </main>
       <footer>AI 负责整理与匹配，事实与最终表述由你确认。</footer>
@@ -259,7 +265,7 @@ function ConfirmDelete({ entry, busy, onCancel, onConfirm }: { entry: HistoryEnt
   </div>
 }
 
-const steps = ['岗位输入', '岗位分析', '项目匹配', '项目编辑', '导出简历']
+const steps = ['岗位输入', '岗位分析', '项目匹配', '项目编辑', '导出简历', '动机信']
 function StepRail({ current, furthest, onStep }: { current: number; furthest: number; onStep: (step: number) => void }) {
   return <nav className="step-rail" aria-label="生成步骤">
     {steps.map((label, index) => {
@@ -350,7 +356,7 @@ function RecommendationStep({ recommendations, projects, selected, setSelected, 
   </div>
 }
 
-function DraftStep({ drafts, initialManualProjects, busy, onSave, onGenerate }: { drafts: Draft[]; initialManualProjects: string[]; busy: string; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
+function DraftStep({ drafts, initialManualProjects, busy, version, setVersion, onSave, onGenerate }: { drafts: Draft[]; initialManualProjects: string[]; busy: string; version: 'WORK' | 'UPWORK'; setVersion: (value: 'WORK' | 'UPWORK') => void; onSave: (position: number, latex: string, approve: boolean) => void; onGenerate: (manualProjects?: string[]) => void }) {
   const [texts, setTexts] = useState<Record<number, string>>(() => Object.fromEntries(initialManualProjects.map((value, index) => [index + 1, value])))
   useEffect(() => setTexts(current => ({ ...current, ...Object.fromEntries(drafts.map(draft => [draft.position, draft.latex ?? current[draft.position] ?? ''])) })), [drafts])
   const allApproved = drafts.length === 3 && drafts.every(d => d.approved && (texts[d.position] ?? '') === (d.latex ?? ''))
@@ -360,11 +366,12 @@ function DraftStep({ drafts, initialManualProjects, busy, onSave, onGenerate }: 
     <div className="panel-heading"><div><p className="section-number">04 / HUMAN IN THE LOOP</p><h2>分别生成并核对项目描述</h2><p>{drafts.length === 0 ? '跳过岗位分析和项目匹配，直接粘贴三段完整的 LaTeX 项目描述。' : '复制每个 Prompt 到独立 Codex 窗口，再把结果粘贴回来。'}</p></div><span className="status-chip">{drafts.length === 0 ? '直接生成模式' : `${drafts.filter(d => d.approved).length} / 3 已确认`}</span></div>
     {drafts.length === 0
       ? <div className="manual-draft-stack">
-          <div className="draft-empty"><FileText size={28}/><div><h3>未选择项目：直接生成模式</h3><p>此模式不提供 Codex Prompt。三个框都有内容后即可生成简历，提交时后端会检查每段格式及四条项目内容。</p></div></div>
+          <div className="draft-empty"><FileText size={28}/><div><h3>未选择项目：直接生成模式</h3><p>此模式不提供 Codex Prompt。三个框都有内容后即可生成简历，提交时后端会依次检查 4、3、2 条项目内容。</p></div></div>
           {[1, 2, 3].map(position => <ManualDraftEditor key={position} position={position} value={texts[position] ?? ''} setValue={value => setTexts(current => ({ ...current, [position]: value }))} />)}
         </div>
       : <div className="draft-stack">{drafts.map(d => <DraftEditor key={d.id} draft={d} value={texts[d.position] ?? ''} setValue={v => setTexts(t => ({ ...t, [d.position]: v }))} busy={busy === `draft-${d.position}`} onSave={onSave}/>)}</div>}
-    <div className="action-row"><p>{drafts.length === 0 ? '三个框都有文字即可提交；格式错误会在生成时明确提示。' : '三个项目通过四条内容校验后，Gemini 会在最终汇总时自动排序、压缩次要项目并重排技能。'}</p><button className="primary-button" disabled={busy !== '' || (drafts.length === 0 ? !manualReady : !allApproved)} onClick={() => drafts.length === 0 ? onGenerate(manualProjects) : onGenerate()}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
+    <div className="resume-version"><label><input type="radio" checked={version === 'WORK'} onChange={() => setVersion('WORK')}/> 工作版 <small>保留电话、邮箱和 GitHub</small></label><label><input type="radio" checked={version === 'UPWORK'} onChange={() => setVersion('UPWORK')}/> Upwork 版 <small>隐藏电话和邮箱</small></label></div>
+    <div className="action-row"><p>{drafts.length === 0 ? '三个框都有文字即可提交；格式错误会在生成时明确提示。' : '三个项目按优先级保留 4、3、2 条；最终 Gemini 只调整职业定位并筛选岗位相关技能。'}</p><button className="primary-button" disabled={busy !== '' || (drafts.length === 0 ? !manualReady : !allApproved)} onClick={() => drafts.length === 0 ? onGenerate(manualProjects) : onGenerate()}>{busy === 'generate' && <LoaderCircle className="spin" size={17}/>}生成简历</button></div>
   </div>
 }
 
@@ -395,7 +402,7 @@ function DraftEditor({ draft, value, setValue, busy, onSave }: { draft: Draft; v
   </article>
 }
 
-function ExportStep({ application, generation }: { application: Application; generation: Generation }) {
+function ExportStep({ application, generation, onContinue }: { application: Application; generation: Generation; onContinue: () => void }) {
   return <div className="panel export-panel">
     <div className="success-orbit"><Check size={34}/></div>
     <p className="section-number">05 / READY TO APPLY</p>
@@ -406,6 +413,23 @@ function ExportStep({ application, generation }: { application: Application; gen
       <a className="download-card" href={api.downloadUrl(application.id, generation.id, 'tex')}><FileText/><span><b>LaTeX 源文件</b><small>始终可用，可继续手工调整</small></span><Download/></a>
       {generation.status === 'PDF_READY' && <a className="download-card dark" href={api.downloadUrl(application.id, generation.id, 'pdf')}><FileText/><span><b>PDF 简历</b><small>已通过隔离编译生成</small></span><Download/></a>}
     </div>
+    <div className="action-row"><p>下一步可结合岗位描述、这份简历和你的补充信息生成德语或英语动机信。</p><button className="primary-button" onClick={onContinue}>继续生成动机信</button></div>
+  </div>
+}
+
+function MotivationStep({ application, generation, initial, busy, onGenerated, run }: { application: Application; generation: Generation; initial: MotivationLetter | null; busy: boolean; onGenerated: (letter: MotivationLetter) => void; run: <T,>(label: string, action: () => Promise<T>, done: (value: T) => void) => void }) {
+  const [personalInfo, setPersonalInfo] = useState(initial?.personalInfo ?? '')
+  const [language, setLanguage] = useState<'DE' | 'EN'>(initial?.language ?? 'DE')
+  const [letter, setLetter] = useState<MotivationLetter | null>(initial)
+  const generateLetter = () => run('motivation', () => api.generateMotivationLetter(application.id, generation.id, personalInfo, language), value => { setLetter(value); onGenerated(value) })
+  return <div className="panel motivation-panel">
+    <div className="panel-heading"><div><p className="section-number">06 / MOTIVATION LETTER</p><h2>生成动机信</h2><p>Gemini 会综合岗位原文、已生成简历和你补充的真实信息。</p></div><span className="status-chip">Gemini</span></div>
+    <div className="motivation-form">
+      <label>补充个人信息 <small>可填写申请动机、入职时间、搬迁意愿或希望强调的真实情况；可留空</small><textarea value={personalInfo} onChange={event => setPersonalInfo(event.target.value)} placeholder="例如：我可以从……开始工作；我愿意搬迁到……" /></label>
+      <label>语言<select value={language} onChange={event => setLanguage(event.target.value as 'DE' | 'EN')}><option value="DE">Deutsch（默认）</option><option value="EN">English</option></select></label>
+    </div>
+    <div className="action-row"><p>只使用已有材料中的事实；重新生成会保留为新的历史版本。</p><button className="primary-button" disabled={busy} onClick={generateLetter}>{busy && <LoaderCircle className="spin" size={17}/>}生成动机信</button></div>
+    {letter && <div className="letter-result"><h3>{letter.subject}</h3><textarea value={letter.content} readOnly/><a className="download-card dark" href={api.motivationLetterUrl(application.id, generation.id, letter.id)}><FileText/><span><b>下载动机信</b><small>UTF-8 纯文本文件</small></span><Download/></a></div>}
   </div>
 }
 

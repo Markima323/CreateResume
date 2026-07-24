@@ -39,7 +39,7 @@ public class ResumeGenerationService {
     }
 
     @Transactional
-    public ResumeGeneration generate(UUID applicationId) {
+    public ResumeGeneration generate(UUID applicationId, ResumeVersion version) {
         JobApplication app = applications.get(applicationId);
         List<ProjectDraft> projectDrafts = drafts.findAllByApplication_IdOrderByPosition(applicationId);
         if (projectDrafts.size() != 3 || projectDrafts.stream().anyMatch(d -> !d.isApproved() || d.getParsedJson() == null)) {
@@ -49,33 +49,34 @@ public class ResumeGenerationService {
             try { return mapper.readValue(d.getParsedJson(), ProjectLatexParser.ParsedProject.class); }
             catch (Exception e) { throw new IllegalStateException(e); }
         }).toList();
-        return generate(app, parsed, projectDrafts.stream().map(ProjectDraft::getPastedLatex).toList());
+        return generate(app, parsed, projectDrafts.stream().map(ProjectDraft::getPastedLatex).toList(), version);
     }
 
     @Transactional
-    public ResumeGeneration generateManual(UUID applicationId, List<String> projects) {
+    public ResumeGeneration generateManual(UUID applicationId, List<String> projects, ResumeVersion version) {
         JobApplication app = applications.get(applicationId);
         if (projects == null || projects.size() != 3) throw new IllegalArgumentException("必须填写三个项目描述");
-        List<ProjectLatexParser.ParsedProject> parsed = projects.stream().map(parser::parse).toList();
+        List<ProjectLatexParser.ParsedProject> parsed = java.util.stream.IntStream.range(0, projects.size())
+                .mapToObj(index -> parser.parse(projects.get(index), 4 - index)).toList();
         String errors = java.util.stream.IntStream.range(0, parsed.size())
                 .filter(index -> !parsed.get(index).valid())
                 .mapToObj(index -> "项目 " + (index + 1) + "：" + String.join("；", parsed.get(index).errors()))
                 .collect(java.util.stream.Collectors.joining(" | "));
         if (!errors.isBlank()) throw new IllegalArgumentException(errors);
-        return generate(app, parsed, List.copyOf(projects));
+        return generate(app, parsed, List.copyOf(projects), version);
     }
 
     private ResumeGeneration generate(JobApplication app, List<ProjectLatexParser.ParsedProject> parsed,
-                                      List<String> sourceProjects) {
+                                      List<String> sourceProjects, ResumeVersion version) {
         try {
             UUID generationId = UUID.randomUUID();
             Path dir = generationRoot.resolve(app.getId().toString()).resolve(generationId.toString()).normalize();
             ensureInsideRoot(dir); Files.createDirectories(dir);
             Path tex = dir.resolve("resume.tex");
             ResumeTailoring tailoring = ai.tailorResume(app, parsed);
-            Files.writeString(tex, renderer.render(parsed, tailoring), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+            Files.writeString(tex, renderer.render(parsed, tailoring, version), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
             ResumeGeneration generation = generations.save(new ResumeGeneration(generationId, app, tex.toString(),
-                    mapper.writeValueAsString(sourceProjects)));
+                    mapper.writeValueAsString(sourceProjects), version));
             compile(dir, generation);
             app.markGenerated();
             return generation;

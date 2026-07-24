@@ -16,13 +16,10 @@ class LatexRendererTest {
     void tailorsHeadlineProjectOrderItemCountsAndSkills() {
         ResumeTailoring tailoring = new ResumeTailoring(
                 "Softwareentwicklerin mit Schwerpunkt IT- und Netzwerktechnik",
-                List.of(new ResumeTailoring.ProjectPlan(2, List.of(1, 2, 3, 4)),
-                        new ResumeTailoring.ProjectPlan(0, List.of(1, 3)),
-                        new ResumeTailoring.ProjectPlan(1, List.of(2, 3, 4))),
                 List.of(new ResumeTailoring.SkillPlan("devops", ResumeProfile.SKILL_CATEGORIES.get(6).skills()),
                         new ResumeTailoring.SkillPlan("languages", ResumeProfile.SKILL_CATEGORIES.get(0).skills())));
 
-        String rendered = renderer.render(List.of(project("A"), project("B"), project("C")), tailoring);
+        String rendered = renderer.render(List.of(project("A", 4), project("B", 3), project("C", 2)), tailoring, ResumeVersion.UPWORK);
 
         assertThat(rendered).contains("\\section{Berufserfahrung}");
         assertThat(rendered).contains("\\section{Projekte}");
@@ -30,15 +27,16 @@ class LatexRendererTest {
         assertThat(rendered).contains("\\section{Technische Kenntnisse}");
         assertThat(rendered).contains("\\textbf{A}", "\\textbf{B}", "\\textbf{C}");
         assertThat(rendered).contains("Softwareentwicklerin mit Schwerpunkt IT- und Netzwerktechnik");
-        assertThat(rendered.indexOf("\\textbf{C}")).isLessThan(rendered.indexOf("\\textbf{A}"));
+        assertThat(rendered.indexOf("\\textbf{A}")).isLessThan(rendered.indexOf("\\textbf{B}"));
         assertThat(rendered.indexOf("\\textbf{DevOps \\& Tools:}")).isLessThan(rendered.indexOf("\\textbf{Programmiersprachen:}"));
-        assertThat(rendered).doesNotContain("%%HEADLINE%%", "%%PROJECTS%%", "%%SKILLS%%");
+        assertThat(rendered).doesNotContain("%%HEADLINE%%", "%%PROJECTS%%", "%%SKILLS%%", "%%CONTACT%%", "markima323@gmail.com", "+49");
     }
 
-    private ProjectLatexParser.ParsedProject project(String title) {
+    private ProjectLatexParser.ParsedProject project(String title, int count) {
+        String items = java.util.stream.IntStream.rangeClosed(1, count).mapToObj(i -> "\\resumeItem{Punkt " + i + "}")
+                .collect(java.util.stream.Collectors.joining(" "));
         return parser.parse("\\resumeProjectHeading {\\textbf{" + title + "} $|$ \\emph{Java}} {Einzelentwicklung} "
                 + "\\resumeItemListStart "
-                + "\\resumeItem{Eins} \\resumeItem{Zwei} \\resumeItem{Drei} \\resumeItem{Vier} "
-                + "\\resumeItemListEnd");
+                + items + " \\resumeItemListEnd", count);
     }
 }

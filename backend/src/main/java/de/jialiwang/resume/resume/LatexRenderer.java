@@ -13,20 +13,19 @@ public class LatexRenderer {
     private final Resource template;
     public LatexRenderer(@Value("${app.latex-template}") Resource template) { this.template = template; }
 
-    public String render(List<ProjectLatexParser.ParsedProject> projects, ResumeTailoring tailoring) {
-        if (projects.size() != 3 || projects.stream().anyMatch(p -> !p.valid() || p.items().size() != 4)) {
-            throw new IllegalArgumentException("必须先确认三个有效项目，每个项目恰好四条内容");
+    public String render(List<ProjectLatexParser.ParsedProject> projects, ResumeTailoring tailoring, ResumeVersion version) {
+        if (projects.size() != 3 || java.util.stream.IntStream.range(0, 3)
+                .anyMatch(index -> !projects.get(index).valid() || projects.get(index).items().size() != 4 - index)) {
+            throw new IllegalArgumentException("必须先确认三个有效项目，项目内容依次为 4、3、2 条");
         }
         try {
             String base = template.getContentAsString(StandardCharsets.UTF_8);
             StringBuilder content = new StringBuilder();
-            for (ResumeTailoring.ProjectPlan plan : tailoring.projects()) {
-                ProjectLatexParser.ParsedProject p = projects.get(plan.sourceIndex());
+            for (ProjectLatexParser.ParsedProject p : projects) {
                 content.append("\\resumeProjectHeading\n  {\\textbf{").append(p.title()).append("} $|$ \\emph{")
                         .append(p.technologies()).append("}}\n  {").append(p.context()).append("}\n")
                         .append("\\resumeItemListStart\n");
-                plan.itemNumbers().forEach(number -> content.append("  \\resumeItem{")
-                        .append(p.items().get(number - 1)).append("}\n"));
+                p.items().forEach(item -> content.append("  \\resumeItem{").append(item).append("}\n"));
                 content.append("\\resumeItemListEnd\n");
             }
             StringBuilder skillContent = new StringBuilder();
@@ -39,6 +38,9 @@ public class LatexRenderer {
                         .append(" \\\\\n");
             }
             return base.replace("%%HEADLINE%%", escape(tailoring.headline()))
+                    .replace("%%CONTACT%%", version == ResumeVersion.UPWORK
+                            ? "\\href{https://github.com/Markima323}{\\underline{github.com/Markima323}}"
+                            : "+49 151 5578 5518 $|$\n  \\href{mailto:markima323@gmail.com}{\\underline{markima323@gmail.com}} $|$\n  \\href{https://github.com/Markima323}{\\underline{github.com/Markima323}}")
                     .replace("%%PROJECTS%%", content.toString())
                     .replace("%%SKILLS%%", skillContent.toString());
         } catch (Exception e) { throw new IllegalStateException("无法读取 LaTeX 模板", e); }

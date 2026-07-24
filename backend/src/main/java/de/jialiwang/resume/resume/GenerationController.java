@@ -12,13 +12,20 @@ import java.util.UUID;
 @RequestMapping("/api/v1/applications/{applicationId}/generations")
 public class GenerationController {
     public record View(UUID id, String status, String errorMessage, OffsetDateTime createdAt,
-                       List<String> sourceProjects) {}
-    public record ManualRequest(List<String> projects) {}
+                       List<String> sourceProjects, ResumeVersion version) {}
+    public record GenerateRequest(ResumeVersion version) {
+        public GenerateRequest { if (version == null) version = ResumeVersion.WORK; }
+    }
+    public record ManualRequest(List<String> projects, ResumeVersion version) {
+        public ManualRequest { if (version == null) version = ResumeVersion.WORK; }
+    }
     private final ResumeGenerationService service;
     public GenerationController(ResumeGenerationService service) { this.service = service; }
-    @PostMapping View generate(@PathVariable UUID applicationId) { return view(service.generate(applicationId)); }
+    @PostMapping View generate(@PathVariable UUID applicationId, @RequestBody(required = false) GenerateRequest request) {
+        return view(service.generate(applicationId, request == null ? ResumeVersion.WORK : request.version()));
+    }
     @PostMapping("/manual") View generateManual(@PathVariable UUID applicationId, @RequestBody ManualRequest request) {
-        return view(service.generateManual(applicationId, request.projects()));
+        return view(service.generateManual(applicationId, request.projects(), request.version()));
     }
     @GetMapping("/{generationId}") View get(@PathVariable UUID applicationId, @PathVariable UUID generationId) {
         return view(service.get(applicationId, generationId));
@@ -35,6 +42,6 @@ public class GenerationController {
     }
     private View view(ResumeGeneration generation) {
         return new View(generation.getId(), generation.getStatus(), generation.getErrorMessage(),
-                generation.getCreatedAt(), service.sourceProjects(generation));
+                generation.getCreatedAt(), service.sourceProjects(generation), generation.getVersion());
     }
 }

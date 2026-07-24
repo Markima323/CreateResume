@@ -63,6 +63,16 @@ export interface Generation {
   errorMessage?: string
   createdAt: string
   sourceProjects: string[]
+  version: 'WORK' | 'UPWORK'
+}
+
+export interface MotivationLetter {
+  id: string
+  language: 'DE' | 'EN'
+  personalInfo: string
+  subject: string
+  content: string
+  createdAt: string
 }
 
 export interface HistoryEntry {

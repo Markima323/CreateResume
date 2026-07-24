@@ -1,4 +1,4 @@
-import type { Application, Draft, Generation, HistoryEntry, Project, Recommendation } from './types'
+import type { Application, Draft, Generation, HistoryEntry, MotivationLetter, Project, Recommendation } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
@@ -33,12 +33,20 @@ export const api = {
   initDrafts: (id: string) => request<Draft[]>(`/applications/${id}/drafts/prompts`, { method: 'POST' }),
   saveDraft: (id: string, position: number, latex: string, approve: boolean) => request<Draft>(`/applications/${id}/drafts/${position}`, { method: 'PUT', body: JSON.stringify({ latex, approve }) }),
   drafts: (id: string) => request<Draft[]>(`/applications/${id}/drafts`),
-  generate: (id: string) => request<Generation>(`/applications/${id}/generations`, { method: 'POST' }),
-  generateManual: (id: string, projects: string[]) => request<Generation>(`/applications/${id}/generations/manual`, {
-    method: 'POST', body: JSON.stringify({ projects }),
+  generate: (id: string, version: 'WORK' | 'UPWORK') => request<Generation>(`/applications/${id}/generations`, { method: 'POST', body: JSON.stringify({ version }) }),
+  generateManual: (id: string, projects: string[], version: 'WORK' | 'UPWORK') => request<Generation>(`/applications/${id}/generations/manual`, {
+    method: 'POST', body: JSON.stringify({ projects, version }),
   }),
   downloadUrl: (applicationId: string, generationId: string, type: 'tex' | 'pdf') => `${BASE}/applications/${applicationId}/generations/${generationId}/resume.${type}`,
   history: () => request<HistoryEntry[]>('/history'),
   deleteHistory: (applicationId: string) => request<void>(`/history/${applicationId}`, { method: 'DELETE' }),
   generation: (applicationId: string, generationId: string) => request<Generation>(`/applications/${applicationId}/generations/${generationId}`),
+  generateMotivationLetter: (applicationId: string, generationId: string, personalInfo: string, language: 'DE' | 'EN') =>
+    request<MotivationLetter>(`/applications/${applicationId}/generations/${generationId}/motivation-letters`, {
+      method: 'POST', body: JSON.stringify({ personalInfo, language }),
+    }),
+  latestMotivationLetter: (applicationId: string, generationId: string) =>
+    request<MotivationLetter | undefined>(`/applications/${applicationId}/generations/${generationId}/motivation-letters/latest`),
+  motivationLetterUrl: (applicationId: string, generationId: string, letterId: string) =>
+    `${BASE}/applications/${applicationId}/generations/${generationId}/motivation-letters/${letterId}/letter.txt`,
 }

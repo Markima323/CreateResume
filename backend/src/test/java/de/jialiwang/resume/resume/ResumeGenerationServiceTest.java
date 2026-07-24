@@ -32,17 +32,17 @@ class ResumeGenerationServiceTest {
         when(generations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         ResumeTailoring tailoring = tailoring();
         when(ai.tailorResume(eq(application), anyList())).thenReturn(tailoring);
-        when(renderer.render(anyList(), eq(tailoring))).thenReturn("\\documentclass{article}\\begin{document}OK\\end{document}");
+        when(renderer.render(anyList(), eq(tailoring), eq(ResumeVersion.UPWORK))).thenReturn("\\documentclass{article}\\begin{document}OK\\end{document}");
         ResumeGenerationService service = new ResumeGenerationService(generationRoot.toString(), applications, drafts,
                 generations, renderer, new ProjectLatexParser(), new ObjectMapper(), ai);
 
-        ResumeGeneration result = service.generateManual(application.getId(), List.of(project("A"), project("B"), project("C")));
+        ResumeGeneration result = service.generateManual(application.getId(), List.of(project("A", 4), project("B", 3), project("C", 2)), ResumeVersion.UPWORK);
 
         assertEquals(application.getId(), result.getApplicationId());
         assertEquals(true, result.getSourceProjectsJson().contains("\\\\textbf{A}"));
         assertEquals("Lebenslauf-Jiali Wang-Manuell.pdf", service.downloadName(application.getId(), true));
         verify(ai).tailorResume(eq(application), argThat(projects -> projects.size() == 3));
-        verify(renderer).render(argThat(projects -> projects.size() == 3), eq(tailoring));
+        verify(renderer).render(argThat(projects -> projects.size() == 3), eq(tailoring), eq(ResumeVersion.UPWORK));
     }
 
     @Test
@@ -55,23 +55,22 @@ class ResumeGenerationServiceTest {
                 new ProjectLatexParser(), new ObjectMapper(), mock(GeminiService.class));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> service.generateManual(application.getId(), List.of(project("A"), "nur Text", project("C"))));
+                () -> service.generateManual(application.getId(), List.of(project("A", 4), "nur Text", project("C", 2)), ResumeVersion.WORK));
 
         assertEquals(true, error.getMessage().startsWith("项目 2："));
     }
 
-    private String project(String title) {
+    private String project(String title, int count) {
+        String items = java.util.stream.IntStream.rangeClosed(1, count).mapToObj(i -> "\\resumeItem{Punkt " + i + "}")
+                .collect(java.util.stream.Collectors.joining(" "));
         return "\\resumeProjectHeading {\\textbf{" + title + "} $|$ \\emph{Java}} {Einzelentwicklung} "
                 + "\\resumeItemListStart "
-                + "\\resumeItem{Eins} \\resumeItem{Zwei} \\resumeItem{Drei} \\resumeItem{Vier} "
+                + items + " "
                 + "\\resumeItemListEnd";
     }
 
     private ResumeTailoring tailoring() {
         return new ResumeTailoring("Softwareentwicklerin mit Schwerpunkt Backend-Entwicklung",
-                List.of(new ResumeTailoring.ProjectPlan(0, List.of(1, 2, 3, 4)),
-                        new ResumeTailoring.ProjectPlan(1, List.of(1, 2, 3)),
-                        new ResumeTailoring.ProjectPlan(2, List.of(1, 2))),
                 ResumeProfile.SKILL_CATEGORIES.stream()
                         .map(category -> new ResumeTailoring.SkillPlan(category.id(), category.skills())).toList());
     }

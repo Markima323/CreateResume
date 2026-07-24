@@ -16,6 +16,10 @@ public class ProjectLatexParser {
     private static final Pattern ITEM = Pattern.compile("\\\\resumeItem\\s*\\{((?:[^{}]|\\\\[{}])*)}", Pattern.DOTALL);
 
     public ParsedProject parse(String raw) {
+        return parse(raw, 4);
+    }
+
+    public ParsedProject parse(String raw, int expectedItemCount) {
         List<String> errors = new ArrayList<>();
         if (raw == null || raw.isBlank()) return new ParsedProject("", "", "", List.of(), List.of("项目内容不能为空"));
         String value = raw.replace("```latex", "").replace("```tex", "").replace("```", "").trim();
@@ -40,7 +44,7 @@ public class ProjectLatexParser {
         List<String> items = new ArrayList<>();
         Matcher m = ITEM.matcher(value);
         while (m.find()) items.add(m.group(1).trim());
-        if (items.size() != 4) errors.add("必须恰好包含 4 个 \\resumeItem，当前为 " + items.size() + " 个");
+        if (items.size() != expectedItemCount) errors.add("必须恰好包含 " + expectedItemCount + " 个 \\resumeItem，当前为 " + items.size() + " 个");
         if (items.stream().anyMatch(String::isBlank)) errors.add("项目条目不能为空");
         return new ParsedProject(title, tech, context, items, errors);
     }

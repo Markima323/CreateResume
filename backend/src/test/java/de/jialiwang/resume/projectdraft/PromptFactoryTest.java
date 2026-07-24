@@ -14,9 +14,10 @@ class PromptFactoryTest {
                 "ORIGINAL_JOB_DESCRIPTION", "");
         application.saveAnalysis("ANALYSIS_JSON");
 
-        String prompt = new PromptFactory().create(application, mock(PortfolioProject.class));
+        String prompt = new PromptFactory().create(application, mock(PortfolioProject.class), 2);
 
         assertThat(prompt).contains("目标岗位分析：\nANALYSIS_JSON");
         assertThat(prompt).contains("<job_description>\nORIGINAL_JOB_DESCRIPTION\n</job_description>");
+        assertThat(prompt).contains("3 个 \\resumeItem").doesNotContain("\\resumeItem{[内容 4]}");
     }
 }

@@ -13,16 +13,21 @@ public class ResumeGeneration {
     @Column(name = "tex_path", nullable = false) private String texPath;
     @Column(name = "pdf_path") private String pdfPath;
     @Column(name = "source_projects_json", columnDefinition = "text") private String sourceProjectsJson;
+    @Enumerated(EnumType.STRING) @Column(nullable = false) private ResumeVersion version;
     @Column(nullable = false) private String status;
     @Column(name = "error_message", columnDefinition = "text") private String errorMessage;
     @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
     protected ResumeGeneration() {}
     public ResumeGeneration(UUID id, JobApplication application, String texPath) {
-        this(id, application, texPath, null);
+        this(id, application, texPath, null, ResumeVersion.WORK);
     }
     public ResumeGeneration(UUID id, JobApplication application, String texPath, String sourceProjectsJson) {
+        this(id, application, texPath, sourceProjectsJson, ResumeVersion.WORK);
+    }
+    public ResumeGeneration(UUID id, JobApplication application, String texPath, String sourceProjectsJson, ResumeVersion version) {
         this.id = id; this.application = application; this.texPath = texPath;
         this.sourceProjectsJson = sourceProjectsJson;
+        this.version = version;
         this.status = "TEX_READY"; this.createdAt = OffsetDateTime.now();
     }
     public void pdfReady(String pdfPath) { this.pdfPath = pdfPath; this.status = "PDF_READY"; }
@@ -33,6 +38,7 @@ public class ResumeGeneration {
     public String getTexPath() { return texPath; }
     public String getPdfPath() { return pdfPath; }
     public String getSourceProjectsJson() { return sourceProjectsJson; }
+    public ResumeVersion getVersion() { return version; }
     public String getStatus() { return status; }
     public String getErrorMessage() { return errorMessage; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

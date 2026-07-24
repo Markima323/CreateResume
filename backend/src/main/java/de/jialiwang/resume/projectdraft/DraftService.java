@@ -37,8 +37,10 @@ public class DraftService {
             PortfolioProject project = projects.findById(ids.get(i)).orElseThrow();
             final short position = (short) (i + 1);
             ProjectDraft draft = existing.stream().filter(d -> d.getPosition() == position).findFirst().orElse(null);
-            if (draft == null) drafts.save(new ProjectDraft(app, project, position, prompts.create(app, project)));
-            else if (!draft.getProject().getId().equals(project.getId())) draft.replaceProject(project, prompts.create(app, project));
+            String prompt = prompts.create(app, project, position);
+            if (draft == null) drafts.save(new ProjectDraft(app, project, position, prompt));
+            else if (!draft.getProject().getId().equals(project.getId())) draft.replaceProject(project, prompt);
+            else if (!prompt.equals(draft.getGeneratedPrompt())) draft.refreshPrompt(prompt);
         }
         return views(applicationId);
     }
@@ -53,7 +55,7 @@ public class DraftService {
     public DraftDtos.View save(UUID applicationId, short position, DraftDtos.ContentRequest request) {
         ProjectDraft draft = drafts.findByApplication_IdAndPosition(applicationId, position)
                 .orElseThrow(() -> new IllegalArgumentException("请先生成三个项目 Prompt"));
-        ProjectLatexParser.ParsedProject parsed = parser.parse(request.latex());
+        ProjectLatexParser.ParsedProject parsed = parser.parse(request.latex(), prompts.expectedItemCount(position));
         boolean approved = request.approve() && parsed.valid();
         try {
             draft.saveContent(request.latex(), mapper.writeValueAsString(parsed), mapper.writeValueAsString(parsed.errors()), approved);

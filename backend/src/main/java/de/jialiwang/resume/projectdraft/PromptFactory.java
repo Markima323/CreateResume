@@ -6,7 +6,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PromptFactory {
-    public String create(JobApplication app, PortfolioProject project) {
+    public String create(JobApplication app, PortfolioProject project, int position) {
+        int itemCount = expectedItemCount(position);
+        String itemTemplate = java.util.stream.IntStream.rangeClosed(1, itemCount)
+                .mapToObj(number -> "  \\resumeItem{[内容 " + number + "]}")
+                .collect(java.util.stream.Collectors.joining("\n"));
         return """
                 你是一名熟悉德国 IT 招聘和 ATS 简历的编辑。
 
@@ -16,7 +20,7 @@ public class PromptFactory {
 
                 严格规则：
                 1. 只能使用“项目事实”中明确存在的信息，不得新增技术、职责、用户数量、性能数据或商业成果。
-                2. 输出恰好 1 个 \\resumeProjectHeading 和 4 个 \\resumeItem，不多不少。
+                2. 输出恰好 1 个 \\resumeProjectHeading 和 %d 个 \\resumeItem，不多不少；只保留与目标岗位最匹配、最有证明力的 %d 条内容。
                 3. 每条使用专业、简洁、以行动为导向的德文；避免空泛形容词和重复内容。
                 4. 优先强调与岗位职责直接相关的架构、实现、集成、部署和可验证结果。
                 5. 技术栈只列实际使用且对目标岗位有意义的技术。
@@ -28,10 +32,7 @@ public class PromptFactory {
                   {\\textbf{[德文项目名]} $|$ \\emph{[技术栈]}}
                   {[项目类型/角色]}
                 \\resumeItemListStart
-                  \\resumeItem{[内容 1]}
-                  \\resumeItem{[内容 2]}
-                  \\resumeItem{[内容 3]}
-                  \\resumeItem{[内容 4]}
+                %s
                 \\resumeItemListEnd
 
                 目标岗位分析：
@@ -41,7 +42,11 @@ public class PromptFactory {
                 <job_description>
                 %s
                 </job_description>
-                """.formatted(safe(app.getAnalysisEditedJson()), app.getJobDescription());
+                """.formatted(itemCount, itemCount, itemTemplate, safe(app.getAnalysisEditedJson()), app.getJobDescription());
+    }
+    public int expectedItemCount(int position) {
+        if (position < 1 || position > 3) throw new IllegalArgumentException("项目位置必须为 1、2 或 3");
+        return 5 - position;
     }
     private String safe(String value) { return value == null ? "" : value; }
 }

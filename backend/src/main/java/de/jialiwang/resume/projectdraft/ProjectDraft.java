@@ -29,6 +29,10 @@ public class ProjectDraft {
         this.project = project; this.generatedPrompt = prompt; this.pastedLatex = null; this.parsedJson = null;
         this.validationErrors = null; this.approved = false; this.updatedAt = OffsetDateTime.now();
     }
+    public void refreshPrompt(String prompt) {
+        this.generatedPrompt = prompt;
+        this.updatedAt = OffsetDateTime.now();
+    }
     public void saveContent(String latex, String parsedJson, String errors, boolean approved) {
         this.pastedLatex = latex; this.parsedJson = parsedJson; this.validationErrors = errors;
         this.approved = approved; this.updatedAt = OffsetDateTime.now();

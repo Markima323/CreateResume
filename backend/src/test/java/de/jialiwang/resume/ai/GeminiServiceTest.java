@@ -83,12 +83,8 @@ class GeminiServiceTest {
 
         ObjectNode output = mapper.createObjectNode()
                 .put("headline", "Softwareentwicklerin mit Schwerpunkt IT- und Netzwerktechnik");
-        output.putArray("projects")
-                .add(projectPlan(2, 1, 2, 3, 4))
-                .add(projectPlan(0, 1, 3))
-                .add(projectPlan(1, 2, 3, 4));
         var skillGroups = output.putArray("skillGroups");
-        for (int index : List.of(6, 0, 1, 5, 2, 4, 3)) {
+        for (int index : List.of(6, 0)) {
             ResumeProfile.SkillCategory category = ResumeProfile.SKILL_CATEGORIES.get(index);
             ObjectNode group = mapper.createObjectNode().put("categoryId", category.id());
             group.set("skills", mapper.valueToTree(category.skills()));
@@ -111,18 +107,9 @@ class GeminiServiceTest {
         ResumeTailoring result = service.tailorResume(application, projects);
 
         assertThat(result.headline()).endsWith("IT- und Netzwerktechnik");
-        assertThat(result.projects().get(0).sourceIndex()).isEqualTo(2);
-        assertThat(result.projects().get(0).itemNumbers()).hasSize(4);
-        assertThat(result.projects().get(1).itemNumbers()).hasSize(2);
         assertThat(result.skillGroups().get(0).categoryId()).isEqualTo("devops");
+        assertThat(result.skillGroups()).hasSize(2);
         server.verify();
-    }
-
-    private ObjectNode projectPlan(int sourceIndex, int... itemNumbers) {
-        ObjectNode plan = mapper.createObjectNode().put("sourceIndex", sourceIndex);
-        var items = plan.putArray("itemNumbers");
-        for (int number : itemNumbers) items.add(number);
-        return plan;
     }
 
     private ProjectLatexParser.ParsedProject parsed(ProjectLatexParser parser, String title) {
